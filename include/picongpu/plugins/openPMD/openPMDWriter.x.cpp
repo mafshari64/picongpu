@@ -171,7 +171,7 @@ In case your openPMD API supports both ADIOS1 and ADIOS2,
 make sure that environment variable OPENPMD_BP_BACKEND is not set to ADIOS1.
                 )END");
                 }
-                if(at == ::openPMD::Access::CREATE)
+                if(at == ::openPMD::Access::CREATE || at == ::openPMD::Access::APPEND)
                 {
                     openPMDSeries->setMeshesPath(MESHES_PATH);
                     openPMDSeries->setParticlesPath(PARTICLES_PATH);
@@ -1793,7 +1793,7 @@ make sure that environment variable OPENPMD_BP_BACKEND is not set to ADIOS1.
                 else
                 {
                     log<picLog::INPUT_OUTPUT>("openPMD: opening Series %1%") % threadParams->fileName;
-                    threadParams->openSeries(::openPMD::Access::CREATE);
+                    threadParams->openSeries(::openPMD::Access::APPEND);
                 }
 
                 /* attributes written here are pure meta data */
