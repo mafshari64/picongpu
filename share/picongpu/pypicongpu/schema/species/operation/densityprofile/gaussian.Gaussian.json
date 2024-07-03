@@ -1,50 +1,58 @@
 {
     "$id": "https://registry.hzdr.de/crp/picongpu/schema/picongpu.pypicongpu.species.operation.densityprofile.gaussian.Gaussian",
     "type": "object",
-    "description": "Describes  a Gaussian density profile, meaning exp(gasFactor * pow(abs((y - gasCenter_SI) / gasSigma_SI), gasPower)) for front and rear of the profile and constant in between",
+    "description": "Describes  a Gaussian density profile, meaning density_si * exp(gasFactor * pow(abs((y - gasCenter_SI) / gasSigma_SI), gasPower)) for front and rear of the profile and constant in between",
     "unevaluatedProperties": false,
     "required": [
-        "gasCenterLeft",
-        "gasCenterRight",
-        "gasSigmaLeft",
-        "gasSigmaRight",
-        "gasFactor",
-        "gasPower",
-        "vacuumCellsY"
+        "gas_center_front",
+        "gas_center_rear",
+        "gas_sigma_front",
+        "gas_sigma_rear",
+        "gas_factor",
+        "gas_power",
+        "vacuum_cells_front",
+        "density"
     ],
     "properties": {
-        "gasCenterLeft": {
+        "gas_center_front": {
             "description": "The central position of the left part of the gas distribution in meters",
-            "type": "number"
+            "type": "number",
+            "minimum": 0
         },
-        "gasCenterRight": {
+        "gas_center_rear": {
             "description": "The central position of the right part of the gas distribution in meters",
-            "type": "number"
+            "type": "number",
+            "minimum": 0
         },
-        "gasSigmaLeft": {
-            "description": "The distance from gasCenterLeft until the gas density decreases to its 1/e-th part in meters",
+        "gas_sigma_front": {
+            "description": "The distance from gasCenterFront until the gas density decreases to its 1/e-th part in meters",
             "type": "number",
             "minimum" : 0
         },
-        "gasSigmaRight": {
-            "description": "The distance from gasCenterRight until the gas density decreases to its 1/e-th part in meters",
+        "gas_sigma_rear": {
+            "description": "The distance from gasCenterRear until the gas density decreases to its 1/e-th part in meters",
             "type": "number",
             "minimum" : 0
         },
-        "gasFactor": {
+        "gas_factor": {
             "description": "Factor for the Gaussian exponent",
             "type": "number",
             "exclusiveMaximum" : 0
         },
-        "gasPower": {
+        "gas_power": {
             "description": "Power for the Gaussian exponent",
             "type": "number",
             "exclusiveMinimum" : 0
         },
-        "vacuumCellsY": {
+        "vacuum_cells_front": {
             "description": "Because of the laser initialization which is done in the first cells of the simulation and assumes a charge-free volume",
             "type": "number",
             "minimum" : 0
+        },
+        "density": {
+            "description": "particle number density in m^-3",
+            "type": "number",
+            "exclusiveMinimum" : 0
         }
     }
 }
