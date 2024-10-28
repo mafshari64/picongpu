@@ -41,8 +41,8 @@
 #include "picongpu/particles/atomicPhysics/stage/RecordChanges.hpp"
 #include "picongpu/particles/atomicPhysics/stage/RecordSuggestedChanges.hpp"
 #include "picongpu/particles/atomicPhysics/stage/ResetAcceptedStatus.hpp"
-#include "picongpu/particles/atomicPhysics/stage/ResetDeltaWeightElectronHistogram.hpp"
 #include "picongpu/particles/atomicPhysics/stage/ResetRateCache.hpp"
+#include "picongpu/particles/atomicPhysics/stage/ResetSharedResources.hpp"
 #include "picongpu/particles/atomicPhysics/stage/ResetTimeStepField.hpp"
 #include "picongpu/particles/atomicPhysics/stage/RollForOverSubscription.hpp"
 #include "picongpu/particles/atomicPhysics/stage/SpawnIonizationElectrons.hpp"
@@ -352,8 +352,8 @@ namespace picongpu::simulation::stage
             //! record all shared resources usage by accepted transitions
             HINLINE static void recordSuggestedChanges(picongpu::MappingDesc const& mappingDesc)
             {
-                picongpu::particles::atomicPhysics::stage::ResetDeltaWeightElectronHistogram<
-                    T_numberAtomicPhysicsIonSpecies>{}(mappingDesc);
+                picongpu::particles::atomicPhysics::stage::ResetSharedResources<T_numberAtomicPhysicsIonSpecies>{}(
+                    mappingDesc);
                 using ForEachIonSpeciesRecordSuggestedChanges = pmacc::meta::ForEach<
                     AtomicPhysicsIonSpecies,
                     particles::atomicPhysics::stage::RecordSuggestedChanges<boost::mpl::_1>>;
@@ -660,5 +660,4 @@ namespace picongpu::simulation::stage
                 numberAtomicPhysicsIonSpecies>{}(mappingDesc, currentStep);
         }
     }
-
 } // namespace picongpu::simulation::stage
