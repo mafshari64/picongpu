@@ -78,6 +78,12 @@ namespace picongpu::atomicPhysics::debug
         constexpr bool TRANSITION_DATA_SET_INDEX_RANGE_CHECKS = false;
     } // namespace rateCache
 
+    namespace fieldEnergyUseCache
+    {
+        //! @attention performance relevant
+        constexpr bool CELL_INDEX_RANGE_CHECKS = true;
+    } // namespace fieldEnergyUseCache
+
     namespace rejectionProbabilityCache
     {
         //! @attention only useful if using serial backend, no output unless compiling for cpu backend
