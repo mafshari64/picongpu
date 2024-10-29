@@ -33,14 +33,24 @@
 
 namespace picongpu::particles::atomicPhysics::electronDistribution
 {
-    /** debug only, print content and bins of histogram to console
-     *
-     * @attention only creates output if atomicPhysics debug setting CPU_OUTPUT_ACTIVE == True
-     * @attention only useful if compiling for serial backend, otherwise output for different histograms will
-     * interleave
-     */
-    template<bool printOnlyOverSubscribed>
-    struct PrintHistogramToConsole
+    namespace enums
+    {
+        enum struct BinSelection : uint8_t
+        {
+            onlyOverSubscribedBins,
+            allBins
+        };
+    } // namespace enums
+    namespace enums
+
+        /** debug only, print content and bins of histogram to console
+         *
+         * @attention only creates output if atomicPhysics debug setting CPU_OUTPUT_ACTIVE == True
+         * @attention only useful if compiling for serial backend, otherwise output for different histograms will
+         * interleave
+         */
+        template<BinSelection T_BinSelection>
+        struct PrintHistogramToConsole
     {
         //! cpu version
         template<typename T_Acc, typename T_Histogram>
@@ -63,7 +73,7 @@ namespace picongpu::particles::atomicPhysics::electronDistribution
 
             for(uint32_t i = 0u; i < numBins; i++)
             {
-                if constexpr(printOnlyOverSubscribed)
+                if constexpr(u8(T_BinSelection) == u8(enums::BinSelection::onlyOverSubscribed))
                 {
                     if(histogram.getBinWeight0(i) >= histogram.getBinDeltaWeight(i))
                         continue;
@@ -97,7 +107,7 @@ namespace picongpu::particles::atomicPhysics::electronDistribution
             -> std::enable_if_t<!std::is_same_v<alpaka::Dev<T_Acc>, alpaka::DevCpu>>
         {
         }
-    };
+    }; // namespace PrintHistogramToConsole
 
     /** holds a gridBuffer of the per-superCell histograms for atomicPhysics
      *

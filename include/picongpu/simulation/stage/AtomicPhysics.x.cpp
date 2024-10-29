@@ -1,4 +1,4 @@
-/* Copyright 2022-2023 Brian Marre
+/* Copyright 2022-2024 Brian Marre
  *
  * This file is part of PIConGPU.
  *
@@ -119,42 +119,18 @@ namespace picongpu::simulation::stage
             using IPDIonSpecies = MakeSeq_t<AtomicPhysicsIonSpecies, OnlyIPDIonSpecies>;
             //!@}
 
-            //! set timeRemaining to PIC-time step
-            HINLINE static void setTimeRemaining()
-            {
-                pmacc::DataConnector& dc = pmacc::Environment<>::get().DataConnector();
-                auto& localTimeRemainingField = *dc.get<S_TimeRemainingField>("TimeRemainingField");
-                localTimeRemainingField.getDeviceBuffer().setValue(picongpu::sim.pic.getDt()); // sim.unit.time()
-            }
-
-            //! reset the histogram on device side
-            HINLINE static void resetElectronEnergyHistogram()
-            {
-                pmacc::DataConnector& dc = pmacc::Environment<>::get().DataConnector();
-                auto& electronHistogramField
-                    = *dc.get<particles::atomicPhysics::electronDistribution::LocalHistogramField<
-                        picongpu::atomicPhysics::ElectronHistogram,
-                        picongpu::MappingDesc>>("Electron_HistogramField");
-                electronHistogramField.getDeviceBuffer().setValue(picongpu::atomicPhysics::ElectronHistogram());
-            }
-
-            //! reset foundUnboundIonField on device side
-            HINLINE static void resetFoundUnboundIon()
-            {
-                pmacc::DataConnector& dc = pmacc::Environment<>::get().DataConnector();
-                auto& foundUnboundIonField = *dc.get<S_FoundUnboundField>("FoundUnboundIonField");
-                foundUnboundIonField.getDeviceBuffer().setValue(0._X);
-            };
+            //! debug print to console
+            //!@{
 
             //! print electron histogram to console, debug only
-            template<bool T_printOnlyOverSubscribed>
+            template<picongpu::particles::atomicPhysics::electronDistribution::enums::BinSelection T_BinSelection>
             HINLINE static void printHistogramToConsole(picongpu::MappingDesc const& mappingDesc)
             {
                 picongpu::particles::atomicPhysics::stage::DumpSuperCellDataToConsole<
                     picongpu::particles::atomicPhysics::electronDistribution::
                         LocalHistogramField<picongpu::atomicPhysics::ElectronHistogram, picongpu::MappingDesc>,
                     picongpu::particles::atomicPhysics::electronDistribution::PrintHistogramToConsole<
-                        T_printOnlyOverSubscribed>>{}(mappingDesc, "Electron_HistogramField");
+                        T_BinSelection>>{}(mappingDesc, "Electron_HistogramField");
             }
 
             //! print ElectronHistogramOverSubscribedField to console, debug only
@@ -198,6 +174,45 @@ namespace picongpu::simulation::stage
                     "TimeStepField");
             }
 
+            //! print local fieldEnergyUseCache to console, debug only
+            HINLINE static void printFieldEnergyUseCacheToConsole(picongpu::MappingDesc const& mappingDesc)
+            {
+                picongpu::particles::atomicPhysics::stage::DumpSuperCellDataToConsole<
+                    picongpu::particles::atomicPhysics::localHelperFields::FieldEnergyUseCacheField<
+                        picongpu::MappingDesc>,
+                    picongpu::particles::atomicPhysics::localHelperFields::PrintFieldEnergyUseCacheToConsole>{}(
+                    mappingDesc,
+                    "FieldEnergyUseCacheField");
+            }
+            //!@}
+
+            //! set timeRemaining to PIC-time step
+            HINLINE static void setTimeRemaining()
+            {
+                pmacc::DataConnector& dc = pmacc::Environment<>::get().DataConnector();
+                auto& localTimeRemainingField = *dc.get<S_TimeRemainingField>("TimeRemainingField");
+                localTimeRemainingField.getDeviceBuffer().setValue(picongpu::sim.pic.getDt()); // sim.unit.time()
+            }
+
+            //! reset the histogram on device side
+            HINLINE static void resetElectronEnergyHistogram()
+            {
+                pmacc::DataConnector& dc = pmacc::Environment<>::get().DataConnector();
+                auto& electronHistogramField
+                    = *dc.get<particles::atomicPhysics::electronDistribution::LocalHistogramField<
+                        picongpu::atomicPhysics::ElectronHistogram,
+                        picongpu::MappingDesc>>("Electron_HistogramField");
+                electronHistogramField.getDeviceBuffer().setValue(picongpu::atomicPhysics::ElectronHistogram());
+            }
+
+            //! reset foundUnboundIonField on device side
+            HINLINE static void resetFoundUnboundIon()
+            {
+                pmacc::DataConnector& dc = pmacc::Environment<>::get().DataConnector();
+                auto& foundUnboundIonField = *dc.get<S_FoundUnboundField>("FoundUnboundIonField");
+                foundUnboundIonField.getDeviceBuffer().setValue(0._X);
+            };
+
             HINLINE static void resetAcceptStatus(picongpu::MappingDesc const& mappingDesc)
             {
                 // particle[accepted_] = false, in each macro ion
@@ -228,7 +243,8 @@ namespace picongpu::simulation::stage
 
                 if constexpr(picongpu::atomicPhysics::debug::electronHistogram::PRINT_TO_CONSOLE)
                 {
-                    printHistogramToConsole</*print all bins*/ false>(mappingDesc);
+                    using BinSelection = picongpu::particles::atomicPhysics::electronDistribution::BinSelection;
+                    printHistogramToConsole<BinSelection::allBins>(mappingDesc);
                 }
             }
 
@@ -303,7 +319,7 @@ namespace picongpu::simulation::stage
                 ForEachIonSpeciesChooseTransition{}(mappingDesc, currentStep);
             }
 
-            // record all shared resources usage by accepted transitions
+            //! record all shared resources usage by accepted transitions
             HINLINE static void recordSuggestedChanges(picongpu::MappingDesc const& mappingDesc)
             {
                 picongpu::particles::atomicPhysics::stage::ResetDeltaWeightElectronHistogram<
@@ -343,7 +359,8 @@ namespace picongpu::simulation::stage
 
                     printOverSubscriptionFieldToConsole(mappingDesc);
                     printRejectionProbabilityCacheToConsole(mappingDesc);
-                    printHistogramToConsole</*print only oversubscribed*/ true>(mappingDesc);
+                    using BinSelection = picongpu::particles::atomicPhysics::electronDistribution::BinSelection;
+                    printHistogramToConsole<BinSelection::onlyOverSubscribedBins>(mappingDesc);
                 }
 
                 // check whether a least one histogram is oversubscribed
@@ -509,7 +526,7 @@ namespace picongpu::simulation::stage
                                              PRINT_DEBUG_TO_CONSOLE)
                             {
                                 printOverSubscriptionFieldToConsole(mappingDesc);
-                                printHistogramToConsole</*print only oversubscribed*/ true>(mappingDesc);
+                                printHistogramToConsole<onlyOverSubscribedBins>(mappingDesc);
 
                                 if constexpr(picongpu::atomicPhysics::debug::rejectionProbabilityCache::
                                                  PRINT_TO_CONSOLE)
