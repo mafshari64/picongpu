@@ -94,6 +94,7 @@ namespace picongpu::particles::atomicPhysics::kernel
             if((timeRemaining <= 0._X) || (!histogramOverSubscribed) || (!forEachLocalIonBoxEntry.hasParticles()))
                 return;
 
+            /// @todo cache in shared memory, Brian Marre, 2024
             picongpu::particles::atomicPhysics::localHelperFields::RejectionProbabilityCache<T_Histogram::numberBins>&
                 rejectionProbabilityCache
                 = localRejectionProbabilityCacheBox(superCellFieldIdx);
@@ -111,15 +112,17 @@ namespace picongpu::particles::atomicPhysics::kernel
 
                     bool const processUsesElectronHistogramWeight
                         = enums::IsProcess<enums::ProcessClassGroup::electronicCollisional>::check(processClass);
-                    bool usesNotOverSubcribedBin = false;
+                    bool usesOverSubcribedBin = true;
+                    [[maybe_unused]] float_X const rejectionProbability
+                        = rejectionProbabilityCache.rejectionProbabilityBin(binIndex);
 
                     if(processUsesElectronHistogramWeight)
-                        usesNotOverSubcribedBin = (rejectionProbabilityCache.rejectionProbability(binIndex) <= 0._X);
+                        usesOverSubcribedBin = (rejectionProbability > 0._X);
 
                     if constexpr(picongpu::atomicPhysics::debug::kernel::rollForOverSubscription::
                                      PRINT_DEBUG_TO_CONSOLE)
                     {
-                        if(ion[accepted_] && processUsesElectronHistogramWeight && !usesNotOverSubcribedBin)
+                        if(ion[accepted_] && processUsesElectronHistogramWeight && usesOverSubcribedBin)
                         {
                             picongpu::particles::atomicPhysics::debug::PrintAtomicPhysicsIonToConsole{}(
                                 worker.getAcc(),
@@ -127,10 +130,10 @@ namespace picongpu::particles::atomicPhysics::kernel
                         }
                     }
 
-                    if((!ion[accepted_]) || (!processUsesElectronHistogramWeight) || usesNotOverSubcribedBin)
+                    if((!ion[accepted_]) || (!processUsesElectronHistogramWeight) || !usesOverSubcribedBin)
                         return;
 
-                    if(rngGenerator() < rejectionProbabilityCache.rejectionProbability(binIndex))
+                    if(rngGenerator() < rejectionProbability)
                     {
                         // reject transition
                         ion[accepted_] = false;

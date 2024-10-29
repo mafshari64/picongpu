@@ -124,7 +124,7 @@ namespace picongpu::particles::atomicPhysics::localHelperFields
         /** add to cache entry, no atomics
          *
          * @param localCellIndex vector index of cell to add energyUsed to
-         * @param energyUsed energy used, in eV
+         * @param energyUsed energy used, in eV, weighted
          *
          * @attention no range checks outside a debug compile, invalid memory write on failure
          * @attention only use if only ever one thread accesses each rate cache entry!
@@ -139,7 +139,7 @@ namespace picongpu::particles::atomicPhysics::localHelperFields
         /** add to cache entry, no atomics and direct access version
          *
          * @param linearCellIndex linear index of cell
-         * @param energyUsed energy used, in eV
+         * @param energyUsed energy used, in eV, weighted
          *
          * @attention no range checks outside a debug compile, invalid memory write on failure
          * @attention only use if only ever one thread accesses each rate cache entry!
