@@ -22,10 +22,10 @@
 #include "picongpu/defines.hpp"
 #include "picongpu/particles/atomicPhysics/ParticleType.hpp"
 #include "picongpu/particles/atomicPhysics/electronDistribution/LocalHistogramField.hpp"
-#include "picongpu/particles/atomicPhysics/localHelperFields/ElectronHistogramOverSubscribedField.hpp"
 #include "picongpu/particles/atomicPhysics/localHelperFields/FieldEnergyUseCacheField.hpp"
 #include "picongpu/particles/atomicPhysics/localHelperFields/FoundUnboundIonField.hpp"
 #include "picongpu/particles/atomicPhysics/localHelperFields/RejectionProbabilityCacheField.hpp"
+#include "picongpu/particles/atomicPhysics/localHelperFields/SharedResourcesOverSubscribedField.hpp"
 #include "picongpu/particles/atomicPhysics/localHelperFields/TimeRemainingField.hpp"
 #include "picongpu/particles/atomicPhysics/localHelperFields/TimeStepField.hpp"
 #include "picongpu/particles/atomicPhysics/stage/CreateRateCacheField.hpp"
@@ -71,10 +71,10 @@ namespace picongpu::particles::atomicPhysics
             dataConnector.consume(std::move(superCellTimeStepField));
 
             // local electron histogram over subscribed switch
-            auto superCellElectronHistogramOverSubscribedField
-                = std::make_unique<localHelperFields::ElectronHistogramOverSubscribedField<picongpu::MappingDesc>>(
+            auto superCellSharedResourcesOverSubscribedField
+                = std::make_unique<localHelperFields::SharedResourcesOverSubscribedField<picongpu::MappingDesc>>(
                     mappingDesc);
-            dataConnector.consume(std::move(superCellElectronHistogramOverSubscribedField));
+            dataConnector.consume(std::move(superCellSharedResourcesOverSubscribedField));
 
             // local storage for foundUnboundIon switch
             auto foundUnboundIonField

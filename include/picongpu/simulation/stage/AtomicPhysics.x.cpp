@@ -361,14 +361,17 @@ namespace picongpu::simulation::stage
             }
 
             // check if an electron histogram bin () is over subscription --> superCellOversubScriptionField
-            template<enums::Loop T_Loop, typename T_SuperCellOversubScriptionField, typename T_DeviceReduce>
-            HINLINE static bool isAnElectronHistogramOverSubscribed(
+            template<
+                enums::Loop T_Loop,
+                typename T_SuperCellSharedResourcesOverSubscriptionField,
+                typename T_DeviceReduce>
+            HINLINE static bool isASharedResourceOverSubscribed(
                 picongpu::MappingDesc const& mappingDesc,
-                T_SuperCellOversubScriptionField& perSuperCellElectronHistogramOverSubscribedField,
+                T_SuperCellSharedResourcesOverSubscriptionField& perSuperCellSharedResourcesOverSubscriptionField,
                 T_DeviceReduce& deviceReduce)
             {
                 DataSpace<picongpu::simDim> const fieldGridLayoutOverSubscription
-                    = perSuperCellElectronHistogramOverSubscribedField.getGridLayout().sizeWithoutGuardND();
+                    = perSuperCellSharedResourcesOverSubscriptionField.getGridLayout().sizeWithoutGuardND();
 
                 picongpu::particles::atomicPhysics::stage::CheckForOverSubscription<T_numberAtomicPhysicsIonSpecies>{}(
                     mappingDesc);
@@ -397,7 +400,7 @@ namespace picongpu::simulation::stage
                 return isOverSubscribed;
             }
 
-            HINLINE static void randomlyRejectTransitionFromOverSubscribedBins(
+            HINLINE static void randomlyRejectTransitionFromOverSubscribedResources(
                 picongpu::MappingDesc const& mappingDesc,
                 uint32_t const currentStep)
             {
@@ -506,8 +509,8 @@ namespace picongpu::simulation::stage
             {
                 pmacc::DataConnector& dc = pmacc::Environment<>::get().DataConnector();
 
-                auto& perSuperCellElectronHistogramOverSubscribedField
-                    = *dc.get<OverSubscribedField>("ElectronHistogramOverSubscribedField");
+                auto& perSuperCellSharedResourcesOverSubscribedField
+                    = *dc.get<S_OverSubscribedField>("SharedResourcesOverSubscribedField");
 
                 /// @todo find better way than hard code old value, Brian Marre, 2023
                 // `static` avoids that reduce is allocating each time step memory, which will reduce the performance.
@@ -541,23 +544,22 @@ namespace picongpu::simulation::stage
                         chooseTransition(mappingDesc, currentStep);
                         recordSuggestedChanges(mappingDesc);
 
-                        bool isOverSubscribed = isAnElectronHistogramOverSubscribed<enums::Loop::ChooseTransition>(
+                        bool isOverSubscribed = isASharedResourceOverSubscribed<enums::Loop::ChooseTransition>(
                             mappingDesc,
-                            perSuperCellElectronHistogramOverSubscribedField,
+                            perSuperCellSharedResourcesOverSubscribedField,
                             deviceLocalReduce);
                         isHistogramOverSubscribed = isOverSubscribed;
 
                         while(isOverSubscribed)
                         {
                             // at least one superCell electron histogram over-subscribed
-                            randomlyRejectTransitionFromOverSubscribedBins(mappingDesc, currentStep);
+                            randomlyRejectTransitionFromOverSubscribedResources(mappingDesc, currentStep);
                             recordSuggestedChanges(mappingDesc);
 
-                            isOverSubscribed
-                                = isAnElectronHistogramOverSubscribed<enums::Loop::RejectOverSubscription>(
-                                    mappingDesc,
-                                    perSuperCellElectronHistogramOverSubscribedField,
-                                    deviceLocalReduce);
+                            isOverSubscribed = isASharedResourceOverSubscribed<enums::Loop::RejectOverSubscription>(
+                                mappingDesc,
+                                perSuperCellSharedResourcesOverSubscribedField,
+                                deviceLocalReduce);
                         } // end remove over subscription loop
 
                         if constexpr(debug::kernel::rollForOverSubscription::PRINT_DEBUG_TO_CONSOLE)

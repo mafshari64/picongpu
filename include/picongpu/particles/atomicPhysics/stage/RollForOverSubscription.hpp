@@ -21,8 +21,8 @@
 
 #include "picongpu/particles/atomicPhysics/electronDistribution/LocalHistogramField.hpp"
 #include "picongpu/particles/atomicPhysics/kernel/RollForOverSubscription.kernel"
-#include "picongpu/particles/atomicPhysics/localHelperFields/ElectronHistogramOverSubscribedField.hpp"
 #include "picongpu/particles/atomicPhysics/localHelperFields/RejectionProbabilityCacheField.hpp"
+#include "picongpu/particles/atomicPhysics/localHelperFields/SharedResourcesOverSubscribedField.hpp"
 #include "picongpu/particles/atomicPhysics/localHelperFields/TimeRemainingField.hpp"
 #include "picongpu/particles/param.hpp"
 

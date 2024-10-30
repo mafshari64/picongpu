@@ -1,4 +1,4 @@
-/* Copyright 2023 Brian Marre
+/* Copyright 2023-2024 Brian Marre
  *
  * This file is part of PIConGPU.
  *
@@ -21,6 +21,7 @@
 
 #include "picongpu/defines.hpp"
 #include "picongpu/particles/atomicPhysics/ConvertEnum.hpp"
+#include "picongpu/particles/atomicPhysics/KernelIndexation.hpp"
 #include "picongpu/particles/atomicPhysics/localHelperFields/RejectionProbabilityCache.hpp"
 
 #include <pmacc/lockstep/ForEach.hpp>
@@ -29,78 +30,71 @@
 
 namespace picongpu::particles::atomicPhysics::kernel
 {
-    /** check all bins for overSubscription
+    /** check all bins and cells for overSubscription
      *
-     * check each histogram bin for deltaWeight > weight0, if yes mark bin as oversubscribed
+     * checks each (superCell cell)/(local histogram bin) for (deltaWeight > weight0)/(fieldEnergyUse > fieldEnergy),
+     *  if yes mark cell/bin as oversubscribed and store rejection probability in rejection probability cache
      *
      * @tparam T_Histogram histogram type
+     * @tparam T_FieldEnergyUseCache field energy use cache type
      * @tparam T_numberAtomicPhysicsIonSpecies specialization template parameter used to prevent compilation of all
      *  atomicPhysics kernels if no atomic physics species is present.
      */
-    template<typename T_Histogram, uint32_t T_numberAtomicPhysicsIonSpecies>
+    template<typename T_Histogram, typename T_FieldEnergyUseCache, uint32_t T_numberAtomicPhysicsIonSpecies>
     struct CheckForOverSubscriptionKernel
     {
         /** call operator
          *
-         * called by checkForOverSubscription atomic physics sub-stage
+         * called by CheckForOverSubscription atomic physics sub-stage
          *
          * @param worker object containing the device and block information, passed by PMACC_KERNEL call
          * @param areMapping mapping of blockIndex to block superCell index
          * @param rngFactory factory for uniformly distributed random number generator
-         * @param histogramBox deviceDataBox giving access to localHistograms for
+         * @param histogramBox deviceDataBox giving access to local electron histograms for all local superCells
+         * @param eFieldBox deviceDataBox giving access to eField values for all local superCells
+         * @param fieldEnergyUseCacheBox deviceDataBox giving access to the field energy use cache for each local
+         * superCell
+         * @param sharedResourcesOverSubscribedBox deviceDataBox giving access to the local shared resources over
+         *  subscription switch for each local superCell
+         * @param rejectionProbabilityCacheBox deviceDataBox giving access to localRejectionProbabilityCache for
          *  all local superCells
-         * @param localElectronHistogramOverSubscribed deviceDataBox giving access to
-         *  histogram over subscription switch for each local superCell
-         * @param localRejectionProbabilityCacheBox deviceDataBox giving access to
-         *  localRejectionProbabilityCache for all local superCells
          */
         template<
             typename T_Worker,
             typename T_AreaMapping,
             typename T_LocalTimeRemainingBox,
             typename T_LocalHistogramDataBox,
-            typename T_LocalElectronHistogramOverSubscribedDataBox,
-            typename T_LocalRejectionProbabilityCacheDataBox>
+            typename T_EFieldBox,
+            typename T_SharedRessourcesOverSubscribedBox,
+            typename T_RejectionProbabilityCacheDataBox>
         HDINLINE void operator()(
             T_Worker const& worker,
             T_AreaMapping const areaMapping,
             T_LocalTimeRemainingBox const timeRemainingBox,
-            T_LocalHistogramDataBox histogramBox,
-            T_LocalElectronHistogramOverSubscribedDataBox localElectronHistogramOverSubscribedBox,
-            T_LocalRejectionProbabilityCacheDataBox localRejectionProbabilityCacheBox) const
+            T_LocalHistogramDataBox const histogramBox,
+            T_EFieldBox const eFieldBox,
+            T_FieldEnergyUseCacheBox const fieldEnergyUseCacheBox,
+            T_SharedRessourcesOverSubscribedBox sharedResourcesOverSubscribedBox,
+            T_RejectionProbabilityCacheDataBox rejectionProbabilityCacheBox) const
         {
-            pmacc::DataSpace<simDim> const superCellIdx = areaMapping.getSuperCellIndex(worker.blockDomIdxND());
-
-            // atomicPhysics superCellFields have no guard, but areMapping includes a guard
-            //  -> must subtract guard to get correct superCellFieldIdx
-            pmacc::DataSpace<picongpu::simDim> const superCellFieldIdx
-                = superCellIdx - areaMapping.getGuardingSuperCells();
+            auto const superCellIdx = KernelIndexation::getSuperCellIndex(worker, areaMapping);
+            auto const superCellFieldIdx = KernelIndexation::getSuperCellFieldIndex(worker, areaMapping, superCellIdx);
 
             auto const timeRemaining = timeRemainingBox(superCellFieldIdx);
-            // end kernel if superCell already finished
             if(timeRemaining <= 0._X)
                 return;
 
-            auto forEachBin = pmacc::lockstep::makeForEach<T_Histogram::numberBins, T_Worker>(worker);
-            auto onlyMaster = pmacc::lockstep::makeMaster<T_Worker>(worker);
+            particles::atomicPhysics::localHelperFields::RejectionProbabilityCache<T_Histogram::numberBins>&
+                rejectionProbabilityCache
+                = rejectionProbabilityCacheBox(superCellFieldIdx);
+
+            bool sharedResourcesOverSubscribed = false;
 
             T_Histogram& histogram = histogramBox(superCellFieldIdx);
-
-            uint32_t& histogramOverSubscribed = localElectronHistogramOverSubscribedBox(superCellFieldIdx);
-
-            picongpu::particles::atomicPhysics::localHelperFields::RejectionProbabilityCache<T_Histogram::numberBins>&
-                rejectionProbabilityCache
-                = localRejectionProbabilityCacheBox(superCellFieldIdx);
-
-            // reset to initial value
-            onlyMaster([&histogramOverSubscribed]() { histogramOverSubscribed = u32(false); });
-            worker.sync();
-
-            /* check all bins for overSubscription
-             *   if yes: calculate RejectionProbability mark entire histogram as over subscribed
-             */
+            auto forEachBin = pmacc::lockstep::makeForEach<T_Histogram::numberBins, T_Worker>(worker);
             forEachBin(
-                [&worker, &histogram, &histogramOverSubscribed, &rejectionProbabilityCache](uint32_t const binIndex)
+                [&worker, &histogram, &sharedResourcesOverSubscribed, &rejectionProbabilityCache](
+                    uint32_t const binIndex)
                 {
                     float_X const weight0 = histogram.getBinWeight0(binIndex);
                     float_X const deltaWeight = histogram.getBinDeltaWeight(binIndex);
@@ -118,18 +112,78 @@ namespace picongpu::particles::atomicPhysics::kernel
                             // but at least one average one macro ion should be rejected
                             sim.unit.typicalNumParticlesPerMacroParticle() / deltaWeight);
 
-                        // set flag that histogram has over subscribed bin
-                        alpaka::atomicExch(
-                            worker.getAcc(),
-                            &histogramOverSubscribed,
-                            u32(true),
-                            ::alpaka::hierarchy::Threads{});
+                        // set flag that we found at least one over subscribed resource
+                        sharedResourcesOverSubscribed = true;
                     }
                     else
                         rejectionProbability = -1._X;
 
                     rejectionProbabilityCache.set(binIndex, rejectionProbability);
                 });
+
+
+            T_FieldEnergyUseCache& fieldEnergyUseCache = fieldEnergyUseCacheBox(superCellFieldIdx);
+            DataSpace<picongpu::simDim> const superCellCellOffset = superCellIdx * picongpu::SuperCellSize::toRT();
+            auto forEachCell = pmacc::lockstep::makeForEach<T_FieldEnergyUseCache::numberCells, T_Worker>(worker);
+            forEachCell(
+                [&worker,
+                 &superCellCellOffset,
+                 &eFieldBox,
+                 &fieldEnergyUseCache,
+                 &sharedResourcesOverSubscribed,
+                 &rejectionProbabilityCache](uint32_t const linearCellIndex)
+                {
+                    DataSpace<picongpu::simDim> const localCellIndex
+                        = pmacc::math::mapToND(picongpu::SuperCellSize::toRT(), static_cast<int>(linearIdx));
+                    DataSpace<picongpu::simDim> const cellIndex = localCellIndex + superCellCellOffset;
+
+                    // sim.unit.charge()^2 * sim.unit.time()^2 / (sim.unit.mass() * sim.unit.length()^3)
+                    //  * sim.unit.length()^3
+                    // = sim.unit.charge()^2 * sim.unit.time()^2 / sim.unit.mass()
+                    constexpr float_X eps0Half_times_cellVolume = piconpgu::sim.pic.getEps0() / 2._X * picongpu::sim.pic.getCellSize().productOfComponents());
+
+                    // sim.unit.charge()^2 * sim.unit.time()^2 / sim.unit.mass()
+                    //  * ((sim.unit.mass() * sim.unit.length())/(sim.unit.time()^2 * sim.unit.charge()))^2
+                    // = sim.unit.charge()^2 * sim.unit.time()^2 * sim.unit.mass()^2 * sim.unit.length()^2
+                    //  / (sim.unit.mass() * sim.unit.time()^4 * sim.unit.charge()^2)
+                    // = sim.unit.mass() * sim.unit.length()^2/ (sim.unit.time()^2 * sim.unit.length())
+                    // sim.unit.energy()
+                    auto const eFieldEnergy = eps0Half_times_cellVolume * pmacc::math::l2norm2(eFieldBox(cellIndex));
+
+                    // eV * 1 = eV * sim.unit.energy()/sim.unit.energy() = (ev / sim.unit.energy()) * sim.unit.energy()
+                    // sim.unit.energy()
+                    auto const eFieldEnergyUse
+                        = picongpu::sim.pic.get_eV() * eFieldEnergyUseCache.energyUsed(linearCellIndex);
+
+                    float_X rejectionProbability;
+
+                    if(eFieldEnergyUse > eFieldEnergy)
+                    {
+                        // cell is oversubscribed by suggested changes
+
+                        // calculate rejection probability
+                        rejectionProbability = math::max(
+                            // proportion of weight we want to reject
+                            (eFieldEnergyUse - eFieldEnergy) / eFieldEnergyUse,
+                            // but at least one average one macro ion should be rejected
+                            sim.unit.typicalNumParticlesPerMacroParticle() / deltaWeight);
+
+                        // set flag that we found at least one over subscribed resource
+                        sharedResourcesOverSubscribed = true;
+                    }
+                    else
+                        rejectionProbability = -1._X;
+
+                    rejectionProbabilityCache.set(binIndex, rejectionProbability);
+                });
+
+            uint32_t& flagField = sharedResourcesOverSubscribedBox(superCellFieldIdx);
+            // write out flag setting to device memory
+            alpaka::atomicOr(
+                worker.getAcc(),
+                &flagField,
+                u32(sharedResourcesOverSubscribed),
+                ::alpaka::hierarchy::Threads{});
         }
     };
 } // namespace picongpu::particles::atomicPhysics::kernel

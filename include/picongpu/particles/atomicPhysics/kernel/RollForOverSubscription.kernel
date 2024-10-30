@@ -1,4 +1,4 @@
-/* Copyright 2023 Brian Marre
+/* Copyright 2023-2024 Brian Marre
  *
  * This file is part of PIConGPU.
  *
@@ -20,6 +20,7 @@
 #pragma once
 
 #include "picongpu/defines.hpp"
+#include "picongpu/particles/atomicPhysics/KernelIndexation.hpp"
 #include "picongpu/particles/atomicPhysics/debug/PrintAtomicPhysicsIonToConsole.hpp"
 #include "picongpu/particles/atomicPhysics/enums/IsProcess.hpp"
 #include "picongpu/particles/atomicPhysics/enums/ProcessClass.hpp"
@@ -52,10 +53,10 @@ namespace picongpu::particles::atomicPhysics::kernel
          * @param rngFactory random number generator factory
          * @param timeRemainingBox deviceDataBox giving access to the local time remaining of all local super
          * cells
-         * @param localElectronHistogramOverSubscribedBox deviceDataBox giving access to
+         * @param sharedResourceOverSubscribedBox deviceDataBox giving access to
          *  the histogram oversubscribed switch of all local superCells
          * @param ionBox deviceDataBox giving access to the particle frames of all local superCells
-         * @param localRejectionProbabilityCacheBox deviceDataBox giving access to the
+         * @param rejectionProbabilityCacheBox deviceDataBox giving access to the
          *  local RejectionProbabilityCache of each local superCells
          */
         template<
@@ -63,66 +64,74 @@ namespace picongpu::particles::atomicPhysics::kernel
             typename T_AreaMapping,
             typename T_RngGeneratorFactoryFloat,
             typename T_LocalTimeRemainingBox,
-            typename T_LocalElectronHistogramOverSubscribedDataBox,
+            typename T_SharedResourceOverSubscribedBox,
             typename T_IonBox,
-            typename T_LocalRejectionProbabilityCacheDataBox>
+            typename T_RejectionProbabilityCacheDataBox>
         HDINLINE void operator()(
             T_Worker const& worker,
             T_AreaMapping const areaMapping,
             /// const?, @todo Brian Marre, 2023
             T_RngGeneratorFactoryFloat rngFactory,
             T_LocalTimeRemainingBox const timeRemainingBox,
-            T_LocalElectronHistogramOverSubscribedDataBox const localElectronHistogramOverSubscribedBox,
+            T_SharedResourceOverSubscribedBox const sharedResourceOverSubscribedBox,
             T_IonBox ionBox,
-            T_LocalRejectionProbabilityCacheDataBox localRejectionProbabilityCacheBox) const
+            T_RejectionProbabilityCacheDataBox rejectionProbabilityCacheBox) const
         {
-            pmacc::DataSpace<simDim> const superCellIdx = areaMapping.getSuperCellIndex(worker.blockDomIdxND());
-
-            // atomicPhysics superCellFields have no guard, but areMapping includes a guard
-            //  -> must subtract guard to get correct superCellFieldIdx
-            pmacc::DataSpace<picongpu::simDim> const superCellFieldIdx
-                = superCellIdx - areaMapping.getGuardingSuperCells();
-
+            auto const superCellIdx = KernelIndexation::getSuperCellIndex(worker, areaMapping);
+            auto const superCellFieldIdx = KernelIndexation::getSuperCellFieldIndex(worker, areaMapping, superCellIdx);
 
             auto const timeRemaining = timeRemainingBox(superCellFieldIdx);
-            bool const histogramOverSubscribed
-                = static_cast<bool>(localElectronHistogramOverSubscribedBox(superCellFieldIdx));
-
+            bool const sharedResourcesOverSubscribed
+                = static_cast<bool>(sharedResourceOverSubscribedBox(superCellFieldIdx));
             auto forEachLocalIonBoxEntry = pmacc::particles::algorithm::acc::makeForEach(worker, ionBox, superCellIdx);
 
-            // end kernel if superCell already finished or no bin over subscribed or contains no particles
-            if((timeRemaining <= 0._X) || (!histogramOverSubscribed) || (!forEachLocalIonBoxEntry.hasParticles()))
+            bool const alreadyFinished = (timeRemaining <= 0._X);
+            bool const noOverSubscription = !sharedResourcesOverSubscribed;
+            bool const noIons = !forEachLocalIonBoxEntry.hasParticles();
+            if(superCellAlreadyFinished || noOverSubscription || hasNoIons)
                 return;
 
             /// @todo cache in shared memory, Brian Marre, 2024
             picongpu::particles::atomicPhysics::localHelperFields::RejectionProbabilityCache<T_Histogram::numberBins>&
                 rejectionProbabilityCache
                 = localRejectionProbabilityCacheBox(superCellFieldIdx);
-
             auto rngGenerator = rngFactory(worker, superCellFieldIdx);
 
             // try to reject each accepted macro-ion, which takes from an oversubscribed bin
             forEachLocalIonBoxEntry(
                 [&](T_Worker const& worker, auto& ion)
                 {
-                    uint32_t const binIndex = ion[binIndex_];
                     uint8_t const processClass = ion[processClass_];
+                    [[maybe_unused]] uint32_t const cellIndex = ion[localCellIdx_];
+                    [[maybe_unused]] uint32_t const binIndex = ion[binIndex_];
+                    bool const accepted = ion[accepted_];
 
                     namespace enums = picongpu::particles::atomicPhysics::enums;
 
-                    bool const processUsesElectronHistogramWeight
+                    bool const usesElectronHistogramWeight
                         = enums::IsProcess<enums::ProcessClassGroup::electronicCollisional>::check(processClass);
-                    bool usesOverSubcribedBin = true;
-                    [[maybe_unused]] float_X const rejectionProbability
-                        = rejectionProbabilityCache.rejectionProbabilityBin(binIndex);
+                    bool const usesFieldEnergy
+                        = enums::IsProcess<enums::ProcessClassGroup::fieldBased>::check(processClass);
 
-                    if(processUsesElectronHistogramWeight)
-                        usesOverSubcribedBin = (rejectionProbability > 0._X);
+                    if(!(usesElectronHistogramWeight || usesFieldEnergy) || !accepted)
+                        return;
+
+                    float_X rejectionProbability;
+                    if(usesElectronHistogramWeight)
+                    {
+                        rejectionProbability = rejectionProbabilityCache.getRejectionProbabilityBin(binIndex);
+                    }
+                    else
+                    {
+                        // usesFieldEnergy == true
+                        rejectionProbability = rejectionProbabilityCache.getRejectionProbabilityCell(cellIndex);
+                    }
+                    bool const usesOverSubscribedResource = (rejectionProbability > 0._X);
 
                     if constexpr(picongpu::atomicPhysics::debug::kernel::rollForOverSubscription::
                                      PRINT_DEBUG_TO_CONSOLE)
                     {
-                        if(ion[accepted_] && processUsesElectronHistogramWeight && usesOverSubcribedBin)
+                        if(accepted && usesOverSubscribedResource)
                         {
                             picongpu::particles::atomicPhysics::debug::PrintAtomicPhysicsIonToConsole{}(
                                 worker.getAcc(),
@@ -130,7 +139,7 @@ namespace picongpu::particles::atomicPhysics::kernel
                         }
                     }
 
-                    if((!ion[accepted_]) || (!processUsesElectronHistogramWeight) || !usesOverSubcribedBin)
+                    if(!usesOverSubscribedResource)
                         return;
 
                     if(rngGenerator() < rejectionProbability)

@@ -63,10 +63,10 @@ namespace picongpu::particles::atomicPhysics::localHelperFields
      * @tparam T_MappingDescription description of local mapping from device to grid
      */
     template<typename T_MappingDescription>
-    struct ElectronHistogramOverSubscribedField
+    struct SharedResourcesOverSubscribedField
         : public SuperCellField<uint32_t, T_MappingDescription, false /*no guards*/>
     {
-        ElectronHistogramOverSubscribedField(T_MappingDescription const& mappingDesc)
+        SharedResourcesOverSubscribedField(T_MappingDescription const& mappingDesc)
             : SuperCellField<uint32_t, T_MappingDescription, false /*no guards*/>(mappingDesc)
         {
         }
@@ -74,7 +74,7 @@ namespace picongpu::particles::atomicPhysics::localHelperFields
         // required by ISimulationData
         std::string getUniqueId() override
         {
-            return "ElectronHistogramOverSubscribedField";
+            return "SharedResourcesOverSubscribedField";
         }
     };
 } // namespace picongpu::particles::atomicPhysics::localHelperFields
