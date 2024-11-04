@@ -1,4 +1,4 @@
-/* Copyright 2023-2024 Brian Marre
+/* Copyright 2024 Brian Marre
  *
  * This file is part of PIConGPU.
  *
@@ -17,18 +17,15 @@
  * If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** @file check for overSubscription of histogram bins and cells and calculate rejectionProbability for each*/
+//! @file update electric field with field ionization energy use
 
 #pragma once
 
 // need picongpu::atomicPhysics::ElectronHistogram from atomicPhysics.param
 #include "picongpu/defines.hpp"
 #include "picongpu/fields/FieldE.hpp"
-#include "picongpu/particles/atomicPhysics/electronDistribution/LocalHistogramField.hpp"
-#include "picongpu/particles/atomicPhysics/kernel/CheckForOverSubscription.kernel"
+#include "picongpu/particles/atomicPhysics/kernel/UpdateElectricField.kernel"
 #include "picongpu/particles/atomicPhysics/localHelperFields/FieldEnergyUseCacheField.hpp"
-#include "picongpu/particles/atomicPhysics/localHelperFields/RejectionProbabilityCacheField.hpp"
-#include "picongpu/particles/atomicPhysics/localHelperFields/SharedResourcesOverSubscribedField.hpp"
 #include "picongpu/particles/atomicPhysics/localHelperFields/TimeRemainingField.hpp"
 
 #include <pmacc/Environment.hpp>
@@ -39,15 +36,16 @@
 
 namespace picongpu::particles::atomicPhysics::stage
 {
-    /** CheckForAndRejectOversubscription atomic physics sub-stage
+    /** UpdateElectricField atomic physics sub-stage
      *
-     * check each histogram bin for deltaWeight > weight0, if yes mark bin as over subscribed
+     * remove the used field energy from the electric field by reducing the norm of the local E-Field vector to match
+     *  the energy use
      *
      * @tparam T_numberAtomicPhysicsIonSpecies specialization template parameter used to prevent compilation of all
      *  atomicPhysics kernels if no atomic physics species is present.
      */
     template<uint32_t T_numberAtomicPhysicsIonSpecies>
-    struct CheckForOverSubscription
+    struct UpdateElectricField
     {
         //! call of kernel for every superCell
         HINLINE void operator()(picongpu::MappingDesc const mappingDesc) const
@@ -60,19 +58,6 @@ namespace picongpu::particles::atomicPhysics::stage
                 picongpu::particles::atomicPhysics::localHelperFields::TimeRemainingField<picongpu::MappingDesc>>(
                 "TimeRemainingField");
 
-            auto& electronHistogramField
-                = *dc.get<picongpu::particles::atomicPhysics::electronDistribution::
-                              LocalHistogramField<picongpu::atomicPhysics::ElectronHistogram, picongpu::MappingDesc>>(
-                    "Electron_HistogramField");
-
-            auto& sharedResourcesOverSubscribedField
-                = *dc.get<picongpu::particles::atomicPhysics::localHelperFields::SharedResourcesOverSubscribedField<
-                    picongpu::MappingDesc>>("SharedResourcesOverSubscribedField");
-
-            auto& rejectionProbabilityCacheField
-                = *dc.get<picongpu::particles::atomicPhysics::localHelperFields::RejectionProbabilityCacheField<
-                    picongpu::MappingDesc>>("RejectionProbabilityCacheField");
-
             auto& eField = *dc.get<FieldE>(FieldE::getName());
 
             using FieldEnergyUseCacheField
@@ -81,20 +66,14 @@ namespace picongpu::particles::atomicPhysics::stage
             auto& fieldEnergyUseCacheField = *dc.get<FieldEnergyUseCacheField>("FieldEnergyUseCacheField");
 
             // macro for call of kernel for every superCell, see pull request #4321
-            PMACC_LOCKSTEP_KERNEL(picongpu::particles::atomicPhysics::kernel::CheckForOverSubscriptionKernel<
-                                      picongpu::atomicPhysics::ElectronHistogram,
+            PMACC_LOCKSTEP_KERNEL(picongpu::particles::atomicPhysics::kernel::UpdateElectricFieldKernel<
                                       FieldEnergyUseCacheField::ElementType,
                                       T_numberAtomicPhysicsIonSpecies>())
-                .template config<picongpu::atomicPhysics::ElectronHistogram::numberBins>(mapper.getGridDim())(
+                .template config<FieldEnergyUseCacheField::ElementType::numberCells>(mapper.getGridDim())(
                     mapper,
                     timeRemainingField.getDeviceDataBox(),
-                    electronHistogramField.getDeviceDataBox(),
                     eField.getDeviceDataBox(),
-                    fieldEnergyUseCacheField.getDeviceDataBox(),
-                    sharedResourcesOverSubscribedField.getDeviceDataBox(),
-                    rejectionProbabilityCacheField.getDeviceDataBox());
-
-            /// @todo implement photon histogram, Brian Marre, 2023
+                    fieldEnergyUseCacheField.getDeviceDataBox());
         }
     };
 } // namespace picongpu::particles::atomicPhysics::stage

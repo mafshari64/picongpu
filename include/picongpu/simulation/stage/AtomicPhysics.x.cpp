@@ -46,6 +46,7 @@
 #include "picongpu/particles/atomicPhysics/stage/ResetTimeStepField.hpp"
 #include "picongpu/particles/atomicPhysics/stage/RollForOverSubscription.hpp"
 #include "picongpu/particles/atomicPhysics/stage/SpawnIonizationElectrons.hpp"
+#include "picongpu/particles/atomicPhysics/stage/UpdateElectricField.hpp"
 #include "picongpu/particles/atomicPhysics/stage/UpdateTimeRemaining.hpp"
 #include "picongpu/particles/filter/filter.hpp"
 
@@ -440,6 +441,12 @@ namespace picongpu::simulation::stage
                 ForEachIonSpeciesSpawnIonizationElectrons{}(mappingDesc, currentStep);
             }
 
+            HINLINE static void updateElectricField(picongpu::MappingDesc const& mappingDesc)
+            {
+                picongpu::particles::atomicPhysics::stage::UpdateElectricField<T_numberAtomicPhysicsIonSpecies>()(
+                    mappingDesc);
+            }
+
             template<typename T_DeviceReduce>
             HINLINE static void doIPDIonization(
                 picongpu::MappingDesc const& mappingDesc,
@@ -576,6 +583,7 @@ namespace picongpu::simulation::stage
 
                     recordChanges(mappingDesc);
                     updateElectrons(mappingDesc, currentStep);
+                    updateElectricField(mappingDesc);
                     doIPDIonization(mappingDesc, currentStep, deviceLocalReduce);
                     updateTimeRemaining(mappingDesc);
                     isSubSteppingComplete = isSubSteppingFinished(mappingDesc, deviceLocalReduce);

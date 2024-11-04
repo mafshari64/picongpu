@@ -21,6 +21,7 @@
 
 // need simDim from dimension.param and SuperCellSize from memory.param
 #include "picongpu/defines.hpp"
+#include "picongpu/particles/atomicPhysics/debug/param.hpp"
 
 #include <pmacc/attribute/unroll.hpp>
 #include <pmacc/dimensions/DataSpace.hpp>
