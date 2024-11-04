@@ -40,7 +40,7 @@ namespace picongpu::particles::atomicPhysics::kernel
      *  subscribed. If yes roll for rejection of the transition.
      * Rejection probability stored for each bin in localRejectionProbabilityCache.
      */
-    template<typename T_Histogram>
+    template<typename T_RejectionProbabilityCache>
     struct RollForOverSubscriptionKernel
     {
         /** call operator
@@ -63,7 +63,7 @@ namespace picongpu::particles::atomicPhysics::kernel
             typename T_Worker,
             typename T_AreaMapping,
             typename T_RngGeneratorFactoryFloat,
-            typename T_LocalTimeRemainingBox,
+            typename T_TimeRemainingBox,
             typename T_SharedResourceOverSubscribedBox,
             typename T_IonBox,
             typename T_RejectionProbabilityCacheDataBox>
@@ -72,7 +72,7 @@ namespace picongpu::particles::atomicPhysics::kernel
             T_AreaMapping const areaMapping,
             /// const?, @todo Brian Marre, 2023
             T_RngGeneratorFactoryFloat rngFactory,
-            T_LocalTimeRemainingBox const timeRemainingBox,
+            T_TimeRemainingBox const timeRemainingBox,
             T_SharedResourceOverSubscribedBox const sharedResourceOverSubscribedBox,
             T_IonBox ionBox,
             T_RejectionProbabilityCacheDataBox rejectionProbabilityCacheBox) const
@@ -85,16 +85,16 @@ namespace picongpu::particles::atomicPhysics::kernel
                 = static_cast<bool>(sharedResourceOverSubscribedBox(superCellFieldIdx));
             auto forEachLocalIonBoxEntry = pmacc::particles::algorithm::acc::makeForEach(worker, ionBox, superCellIdx);
 
+            // superCell of worker?
             bool const alreadyFinished = (timeRemaining <= 0._X);
             bool const noOverSubscription = !sharedResourcesOverSubscribed;
             bool const noIons = !forEachLocalIonBoxEntry.hasParticles();
-            if(superCellAlreadyFinished || noOverSubscription || hasNoIons)
+            if(alreadyFinished || noOverSubscription || noIons)
                 return;
 
             /// @todo cache in shared memory, Brian Marre, 2024
-            picongpu::particles::atomicPhysics::localHelperFields::RejectionProbabilityCache<T_Histogram::numberBins>&
-                rejectionProbabilityCache
-                = localRejectionProbabilityCacheBox(superCellFieldIdx);
+            T_RejectionProbabilityCache const& rejectionProbabilityCache
+                = rejectionProbabilityCacheBox(superCellFieldIdx);
             auto rngGenerator = rngFactory(worker, superCellFieldIdx);
 
             // try to reject each accepted macro-ion, which takes from an oversubscribed bin
@@ -110,12 +110,14 @@ namespace picongpu::particles::atomicPhysics::kernel
 
                     bool const usesElectronHistogramWeight
                         = enums::IsProcess<enums::ProcessClassGroup::electronicCollisional>::check(processClass);
-                    bool const usesFieldEnergy
-                        = enums::IsProcess<enums::ProcessClassGroup::fieldBased>::check(processClass);
+                    bool const usesElectricFieldEnergy
+                        = enums::IsProcess<enums::ProcessClassGroup::electricFieldBased>::check(processClass);
 
-                    if(!(usesElectronHistogramWeight || usesFieldEnergy) || !accepted)
+                    if(!(usesElectronHistogramWeight || usesElectricFieldEnergy) || !accepted)
                         return;
 
+                    /** @attention if assumes that usesElectricFieldEnergy and usesElectronHistogramWeight are mutually
+                     *    exclusive */
                     float_X rejectionProbability;
                     if(usesElectronHistogramWeight)
                     {
@@ -123,7 +125,7 @@ namespace picongpu::particles::atomicPhysics::kernel
                     }
                     else
                     {
-                        // usesFieldEnergy == true
+                        /// @note (usesElectricFieldEnergy == true)
                         rejectionProbability = rejectionProbabilityCache.getRejectionProbabilityCell(cellIndex);
                     }
                     bool const usesOverSubscribedResource = (rejectionProbability > 0._X);

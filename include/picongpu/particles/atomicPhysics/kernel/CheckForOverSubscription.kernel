@@ -65,6 +65,7 @@ namespace picongpu::particles::atomicPhysics::kernel
             typename T_LocalTimeRemainingBox,
             typename T_LocalHistogramDataBox,
             typename T_EFieldBox,
+            typename T_FieldEnergyUseCacheBox,
             typename T_SharedRessourcesOverSubscribedBox,
             typename T_RejectionProbabilityCacheDataBox>
         HDINLINE void operator()(
@@ -84,13 +85,14 @@ namespace picongpu::particles::atomicPhysics::kernel
             if(timeRemaining <= 0._X)
                 return;
 
-            particles::atomicPhysics::localHelperFields::RejectionProbabilityCache<T_Histogram::numberBins>&
-                rejectionProbabilityCache
+            particles::atomicPhysics::localHelperFields::RejectionProbabilityCache<
+                T_Histogram::numberBins,
+                T_FieldEnergyUseCache::numberCells>& rejectionProbabilityCache
                 = rejectionProbabilityCacheBox(superCellFieldIdx);
 
             bool sharedResourcesOverSubscribed = false;
 
-            T_Histogram& histogram = histogramBox(superCellFieldIdx);
+            T_Histogram const& histogram = histogramBox(superCellFieldIdx);
             auto forEachBin = pmacc::lockstep::makeForEach<T_Histogram::numberBins, T_Worker>(worker);
             forEachBin(
                 [&worker, &histogram, &sharedResourcesOverSubscribed, &rejectionProbabilityCache](
@@ -118,29 +120,30 @@ namespace picongpu::particles::atomicPhysics::kernel
                     else
                         rejectionProbability = -1._X;
 
-                    rejectionProbabilityCache.set(binIndex, rejectionProbability);
+                    rejectionProbabilityCache.setBin(binIndex, rejectionProbability);
                 });
 
 
-            T_FieldEnergyUseCache& fieldEnergyUseCache = fieldEnergyUseCacheBox(superCellFieldIdx);
+            T_FieldEnergyUseCache const& eFieldEnergyUseCache = fieldEnergyUseCacheBox(superCellFieldIdx);
             DataSpace<picongpu::simDim> const superCellCellOffset = superCellIdx * picongpu::SuperCellSize::toRT();
             auto forEachCell = pmacc::lockstep::makeForEach<T_FieldEnergyUseCache::numberCells, T_Worker>(worker);
             forEachCell(
                 [&worker,
                  &superCellCellOffset,
                  &eFieldBox,
-                 &fieldEnergyUseCache,
+                 &eFieldEnergyUseCache,
                  &sharedResourcesOverSubscribed,
                  &rejectionProbabilityCache](uint32_t const linearCellIndex)
                 {
                     DataSpace<picongpu::simDim> const localCellIndex
-                        = pmacc::math::mapToND(picongpu::SuperCellSize::toRT(), static_cast<int>(linearIdx));
+                        = pmacc::math::mapToND(picongpu::SuperCellSize::toRT(), static_cast<int>(linearCellIndex));
                     DataSpace<picongpu::simDim> const cellIndex = localCellIndex + superCellCellOffset;
 
                     // sim.unit.charge()^2 * sim.unit.time()^2 / (sim.unit.mass() * sim.unit.length()^3)
                     //  * sim.unit.length()^3
                     // = sim.unit.charge()^2 * sim.unit.time()^2 / sim.unit.mass()
-                    constexpr float_X eps0Half_times_cellVolume = piconpgu::sim.pic.getEps0() / 2._X * picongpu::sim.pic.getCellSize().productOfComponents());
+                    constexpr float_X eps0HalfTimesCellVolume
+                        = (picongpu::sim.pic.getEps0() / 2._X) * picongpu::sim.pic.getCellSize().productOfComponents();
 
                     // sim.unit.charge()^2 * sim.unit.time()^2 / sim.unit.mass()
                     //  * ((sim.unit.mass() * sim.unit.length())/(sim.unit.time()^2 * sim.unit.charge()))^2
@@ -148,7 +151,7 @@ namespace picongpu::particles::atomicPhysics::kernel
                     //  / (sim.unit.mass() * sim.unit.time()^4 * sim.unit.charge()^2)
                     // = sim.unit.mass() * sim.unit.length()^2/ (sim.unit.time()^2 * sim.unit.length())
                     // sim.unit.energy()
-                    auto const eFieldEnergy = eps0Half_times_cellVolume * pmacc::math::l2norm2(eFieldBox(cellIndex));
+                    auto const eFieldEnergy = eps0HalfTimesCellVolume * pmacc::math::l2norm2(eFieldBox(cellIndex));
 
                     // eV * 1 = eV * sim.unit.energy()/sim.unit.energy() = (ev / sim.unit.energy()) * sim.unit.energy()
                     // sim.unit.energy()
@@ -165,8 +168,8 @@ namespace picongpu::particles::atomicPhysics::kernel
                         rejectionProbability = math::max(
                             // proportion of weight we want to reject
                             (eFieldEnergyUse - eFieldEnergy) / eFieldEnergyUse,
-                            // but at least one average one macro ion should be rejected
-                            sim.unit.typicalNumParticlesPerMacroParticle() / deltaWeight);
+                            // but approximately at least one average one macro ion per cell should be rejected
+                            1 / sim.getTypicalNumParticlesPerCell());
 
                         // set flag that we found at least one over subscribed resource
                         sharedResourcesOverSubscribed = true;
@@ -174,7 +177,7 @@ namespace picongpu::particles::atomicPhysics::kernel
                     else
                         rejectionProbability = -1._X;
 
-                    rejectionProbabilityCache.set(binIndex, rejectionProbability);
+                    rejectionProbabilityCache.setCell(linearCellIndex, rejectionProbability);
                 });
 
             uint32_t& flagField = sharedResourcesOverSubscribedBox(superCellFieldIdx);

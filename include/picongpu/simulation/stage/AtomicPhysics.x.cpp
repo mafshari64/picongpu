@@ -81,6 +81,8 @@ namespace picongpu::simulation::stage
         } // namespace enums
 
         namespace debug = picongpu::atomicPhysics::debug;
+        namespace localHelperFields = picongpu::particles::atomicPhysics::localHelperFields;
+        namespace electronDistribution = picongpu::particles::atomicPhysics::electronDistribution;
 
         /** atomic physics stage
          *
@@ -110,15 +112,11 @@ namespace picongpu::simulation::stage
             template<typename T_Field>
             using LinearizedBox = DataBoxDim1Access<typename T_Field::DataBoxType>;
 
-            using OverSubscribedField
-                = picongpu::particles::atomicPhysics::localHelperFields::ElectronHistogramOverSubscribedField<
-                    picongpu::MappingDesc>;
-            using TimeRemainingField
-                = particles::atomicPhysics::localHelperFields::TimeRemainingField<picongpu::MappingDesc>;
-            using FoundUnboundField
-                = particles::atomicPhysics::localHelperFields::FoundUnboundIonField<picongpu::MappingDesc>;
+            using OverSubscribedField = localHelperFields::SharedResourcesOverSubscribedField<picongpu::MappingDesc>;
+            using TimeRemainingField = localHelperFields::TimeRemainingField<picongpu::MappingDesc>;
+            using FoundUnboundField = localHelperFields::FoundUnboundIonField<picongpu::MappingDesc>;
 
-            using BinSelection = picongpu::particles::atomicPhysics::electronDistribution::enums::BinSelection;
+            using BinSelection = electronDistribution::enums::BinSelection;
 
             //! species lists
             //!@{
@@ -160,23 +158,23 @@ namespace picongpu::simulation::stage
                 {
                     std::cout << name << std::endl;
                     picongpu::particles::atomicPhysics::stage::DumpSuperCellDataToConsole<
-                        picongpu::particles::atomicPhysics::electronDistribution::
+                        electronDistribution::
                             LocalHistogramField<picongpu::atomicPhysics::ElectronHistogram, picongpu::MappingDesc>,
-                        picongpu::particles::atomicPhysics::electronDistribution::PrintHistogramToConsole<
-                            T_BinSelection>>{}(mappingDesc, "Electron_HistogramField");
+                        electronDistribution::PrintHistogramToConsole<T_BinSelection>>{}(
+                        mappingDesc,
+                        "Electron_HistogramField");
                 }
             }
 
-            //! print ElectronHistogramOverSubscribedField to console, debug only
+            //! print SharedResourcesOverSubscribedField to console, debug only
             HINLINE static void printOverSubscriptionFieldToConsole(picongpu::MappingDesc const& mappingDesc)
             {
                 if constexpr(debug::rejectionProbabilityCache::PRINT_TO_CONSOLE)
                     picongpu::particles::atomicPhysics::stage::DumpSuperCellDataToConsole<
-                        picongpu::particles::atomicPhysics::localHelperFields::ElectronHistogramOverSubscribedField<
-                            picongpu::MappingDesc>,
-                        picongpu::particles::atomicPhysics::localHelperFields::PrintOverSubcriptionFieldToConsole>{}(
+                        localHelperFields::SharedResourcesOverSubscribedField<picongpu::MappingDesc>,
+                        localHelperFields::PrintOverSubcriptionFieldToConsole>{}(
                         mappingDesc,
-                        "ElectronHistogramOverSubscribedField");
+                        "SharedResourcesOverSubscribedField");
             }
 
             //! print rejectionProbabilityCache to console, debug only
@@ -185,10 +183,8 @@ namespace picongpu::simulation::stage
                 if constexpr(debug::rejectionProbabilityCache::PRINT_TO_CONSOLE)
                 {
                     picongpu::particles::atomicPhysics::stage::DumpSuperCellDataToConsole<
-                        picongpu::particles::atomicPhysics::localHelperFields ::RejectionProbabilityCacheField<
-                            picongpu::MappingDesc>,
-                        picongpu::particles::atomicPhysics::localHelperFields ::
-                            PrintRejectionProbabilityCacheToConsole<true>>{}(
+                        localHelperFields::RejectionProbabilityCacheField<picongpu::MappingDesc>,
+                        localHelperFields::PrintRejectionProbabilityCacheToConsole<true>>{}(
                         mappingDesc,
                         "RejectionProbabilityCacheField");
                 }
@@ -200,11 +196,8 @@ namespace picongpu::simulation::stage
                 if constexpr(debug::timeRemaining::PRINT_TO_CONSOLE)
                 {
                     picongpu::particles::atomicPhysics::stage::DumpSuperCellDataToConsole<
-                        picongpu::particles::atomicPhysics::localHelperFields::TimeRemainingField<
-                            picongpu::MappingDesc>,
-                        picongpu::particles::atomicPhysics::localHelperFields::PrintTimeRemaingToConsole>{}(
-                        mappingDesc,
-                        "TimeRemainingField");
+                        localHelperFields::TimeRemainingField<picongpu::MappingDesc>,
+                        localHelperFields::PrintTimeRemaingToConsole>{}(mappingDesc, "TimeRemainingField");
                 }
             }
 
@@ -213,10 +206,21 @@ namespace picongpu::simulation::stage
             {
                 if constexpr(debug::timeStep::PRINT_TO_CONSOLE)
                     picongpu::particles::atomicPhysics::stage::DumpSuperCellDataToConsole<
-                        picongpu::particles::atomicPhysics::localHelperFields::TimeStepField<picongpu::MappingDesc>,
-                        picongpu::particles::atomicPhysics::localHelperFields::PrintTimeStepToConsole>{}(
+                        localHelperFields::TimeStepField<picongpu::MappingDesc>,
+                        localHelperFields::PrintTimeStepToConsole>{}(mappingDesc, "TimeStepField");
+            }
+
+            //! print local fieldEnergyUseCache to console, debug only
+            template<enums::Loop T_Loop>
+            HINLINE static void printFieldEnergyUseCacheToConsole(picongpu::MappingDesc const& mappingDesc)
+            {
+                constexpr bool isActive = debug::fieldEnergyUseCache::PRINT_TO_CONSOLE && debugPrintActive<T_Loop>();
+                if constexpr(isActive)
+                    picongpu::particles::atomicPhysics::stage::DumpSuperCellDataToConsole<
+                        localHelperFields::FieldEnergyUseCacheField<picongpu::MappingDesc>,
+                        localHelperFields::PrintFieldEnergyUseCacheToConsole>{}(
                         mappingDesc,
-                        "TimeStepField");
+                        "FieldEnergyUseCacheField");
             }
             //!@}
 
@@ -232,10 +236,9 @@ namespace picongpu::simulation::stage
             HINLINE static void resetElectronEnergyHistogram()
             {
                 pmacc::DataConnector& dc = pmacc::Environment<>::get().DataConnector();
-                auto& electronHistogramField
-                    = *dc.get<particles::atomicPhysics::electronDistribution::LocalHistogramField<
-                        picongpu::atomicPhysics::ElectronHistogram,
-                        picongpu::MappingDesc>>("Electron_HistogramField");
+                auto& electronHistogramField = *dc.get<electronDistribution::LocalHistogramField<
+                    picongpu::atomicPhysics::ElectronHistogram,
+                    picongpu::MappingDesc>>("Electron_HistogramField");
                 electronHistogramField.getDeviceBuffer().setValue(picongpu::atomicPhysics::ElectronHistogram());
             }
 
@@ -377,7 +380,7 @@ namespace picongpu::simulation::stage
                     mappingDesc);
 
                 auto linearizedOverSubscribedBox = LinearizedBox<OverSubscribedField>(
-                    perSuperCellElectronHistogramOverSubscribedField.getDeviceDataBox(),
+                    perSuperCellSharedResourcesOverSubscriptionField.getDeviceDataBox(),
                     fieldGridLayoutOverSubscription);
 
                 bool isOverSubscribed = static_cast<bool>(deviceReduce(
@@ -393,6 +396,7 @@ namespace picongpu::simulation::stage
                     message += (isOverSubscribed ? "true" : "false");
                 }
                 printHistogramToConsole<BinSelection::OnlyOverSubscribed, T_Loop>(mappingDesc, message);
+                printFieldEnergyUseCacheToConsole<T_Loop>(mappingDesc);
                 printOverSubscriptionFieldToConsole(mappingDesc);
                 printRejectionProbabilityCacheToConsole(mappingDesc);
 
@@ -510,7 +514,7 @@ namespace picongpu::simulation::stage
                 pmacc::DataConnector& dc = pmacc::Environment<>::get().DataConnector();
 
                 auto& perSuperCellSharedResourcesOverSubscribedField
-                    = *dc.get<S_OverSubscribedField>("SharedResourcesOverSubscribedField");
+                    = *dc.get<OverSubscribedField>("SharedResourcesOverSubscribedField");
 
                 /// @todo find better way than hard code old value, Brian Marre, 2023
                 // `static` avoids that reduce is allocating each time step memory, which will reduce the performance.
@@ -568,6 +572,7 @@ namespace picongpu::simulation::stage
 
                     printTimeRemainingToConsole(mappingDesc);
                     printTimeStepToConsole(mappingDesc);
+                    printFieldEnergyUseCacheToConsole<enums::Loop::SubStep>(mappingDesc);
 
                     recordChanges(mappingDesc);
                     updateElectrons(mappingDesc, currentStep);

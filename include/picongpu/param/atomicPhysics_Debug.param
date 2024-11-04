@@ -80,8 +80,11 @@ namespace picongpu::atomicPhysics::debug
 
     namespace fieldEnergyUseCache
     {
+        //! @attention only useful if using serial backend, no output unless compiling for cpu backend
+        constexpr bool PRINT_TO_CONSOLE = false;
+
         //! @attention performance relevant
-        constexpr bool CELL_INDEX_RANGE_CHECKS = true;
+        constexpr bool CELL_INDEX_RANGE_CHECKS = false;
     } // namespace fieldEnergyUseCache
 
     namespace rejectionProbabilityCache

@@ -57,34 +57,36 @@ namespace picongpu::particles::atomicPhysics::stage
         //! call of kernel for every superCell
         HINLINE void operator()(picongpu::MappingDesc const mappingDesc, uint32_t const currentStep) const
         {
+            namespace localHelperFields = picongpu::particles::atomicPhysics::localHelperFields;
+
             // full local domain, no guards
             pmacc::AreaMapping<CORE + BORDER, MappingDesc> mapper(mappingDesc);
             pmacc::DataConnector& dc = pmacc::Environment<>::get().DataConnector();
 
-            auto& timeRemainingField = *dc.get<
-                picongpu::particles::atomicPhysics::localHelperFields::TimeRemainingField<picongpu::MappingDesc>>(
-                "TimeRemainingField");
+            auto& timeRemainingField
+                = *dc.get<localHelperFields::TimeRemainingField<picongpu::MappingDesc>>("TimeRemainingField");
 
             auto& ions = *dc.get<IonSpecies>(IonSpecies::FrameType::getName());
 
+            using RejectionProbabilityCacheField
+                = localHelperFields::RejectionProbabilityCacheField<picongpu::MappingDesc>;
             auto& rejectionProbabilityCacheField
-                = *dc.get<picongpu::particles::atomicPhysics::localHelperFields::RejectionProbabilityCacheField<
-                    picongpu::MappingDesc>>("RejectionProbabilityCacheField");
+                = *dc.get<RejectionProbabilityCacheField>("RejectionProbabilityCacheField");
 
-            auto& electronHistogramOverSubscribedField
-                = *dc.get<picongpu::particles::atomicPhysics::localHelperFields::ElectronHistogramOverSubscribedField<
-                    picongpu::MappingDesc>>("ElectronHistogramOverSubscribedField");
+            auto& sharedResourcesOverSubscribedField
+                = *dc.get<localHelperFields::SharedResourcesOverSubscribedField<picongpu::MappingDesc>>(
+                    "SharedResourcesOverSubscribedField");
 
             RngFactoryFloat rngFactory = RngFactoryFloat{currentStep};
 
             // macro for call of kernel for every superCell
             PMACC_LOCKSTEP_KERNEL(picongpu::particles::atomicPhysics::kernel::RollForOverSubscriptionKernel<
-                                      picongpu::atomicPhysics::ElectronHistogram>())
+                                      RejectionProbabilityCacheField::ElementType>())
                 .config(mapper.getGridDim(), ions)(
                     mapper,
                     rngFactory,
                     timeRemainingField.getDeviceDataBox(),
-                    electronHistogramOverSubscribedField.getDeviceDataBox(),
+                    sharedResourcesOverSubscribedField.getDeviceDataBox(),
                     ions.getDeviceParticlesBox(),
                     rejectionProbabilityCacheField.getDeviceDataBox());
         }

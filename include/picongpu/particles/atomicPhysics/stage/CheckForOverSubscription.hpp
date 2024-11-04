@@ -72,15 +72,17 @@ namespace picongpu::particles::atomicPhysics::stage
                 = *dc.get<picongpu::particles::atomicPhysics::localHelperFields::RejectionProbabilityCacheField<
                     picongpu::MappingDesc>>("RejectionProbabilityCacheField");
 
-            auto& eField = dc.get<FieldE>(FieldE::getName());
+            auto& eField = *dc.get<FieldE>(FieldE::getName());
 
-            auto& fieldEnergyUseCacheField
-                = *dc.get<picongpu::particles::atomicPhysics::localHelperFields::RejectionProbabilityCacheField<
-                    picongpu::MappingDesc>>("FieldEnergyUseCacheField");
+            using FieldEnergyUseCacheField
+                = picongpu::particles::atomicPhysics::localHelperFields::FieldEnergyUseCacheField<
+                    picongpu::MappingDesc>;
+            auto& fieldEnergyUseCacheField = *dc.get<FieldEnergyUseCacheField>("FieldEnergyUseCacheField");
 
             // macro for call of kernel for every superCell, see pull request #4321
             PMACC_LOCKSTEP_KERNEL(picongpu::particles::atomicPhysics::kernel::CheckForOverSubscriptionKernel<
                                       picongpu::atomicPhysics::ElectronHistogram,
+                                      FieldEnergyUseCacheField::ElementType,
                                       T_numberAtomicPhysicsIonSpecies>())
                 .template config<picongpu::atomicPhysics::ElectronHistogram::numberBins>(mapper.getGridDim())(
                     mapper,
