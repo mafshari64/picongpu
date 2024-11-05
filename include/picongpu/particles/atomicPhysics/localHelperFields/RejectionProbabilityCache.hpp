@@ -124,7 +124,7 @@ namespace picongpu::particles::atomicPhysics::localHelperFields
         float_X rejectionProbabilityCell[numberCells] = {-1._X}; // unitless
 
         //! @attention only active by debug setting
-        static bool outOfRangeLinearCellIndex(uint32_t const linearCellIndex)
+        HDINLINE static bool outOfRangeLinearCellIndex(uint32_t const linearCellIndex)
         {
             if constexpr(picongpu::atomicPhysics::debug::rejectionProbabilityCache::BIN_INDEX_RANGE_CHECK)
                 if(linearCellIndex >= numberCells)
@@ -137,7 +137,7 @@ namespace picongpu::particles::atomicPhysics::localHelperFields
         }
 
         //! @attention only active by debug setting
-        static bool outOfRangeBinIndex(uint32_t const binIndex)
+        HDINLINE static bool outOfRangeBinIndex(uint32_t const binIndex)
         {
             if constexpr(picongpu::atomicPhysics::debug::rejectionProbabilityCache::BIN_INDEX_RANGE_CHECK)
                 if(binIndex >= numberBins)

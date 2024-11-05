@@ -25,6 +25,7 @@
 #include "picongpu/defines.hpp"
 #include "picongpu/particles/atomicPhysics/electronDistribution/LocalHistogramField.hpp"
 #include "picongpu/particles/atomicPhysics/kernel/ResetDeltaWeightElectronHistogram.kernel"
+#include "picongpu/particles/atomicPhysics/localHelperFields/FieldEnergyUseCacheField.hpp"
 #include "picongpu/particles/atomicPhysics/localHelperFields/TimeRemainingField.hpp"
 #include "picongpu/particles/atomicPhysics/param.hpp"
 
@@ -37,7 +38,7 @@
 namespace picongpu::particles::atomicPhysics::stage
 {
     /// short hand for
-    namespace s_localHelperFields = picongpu::particles::atomicPhysics::localHelperFields;
+    namespace localHelperFields = picongpu::particles::atomicPhysics::localHelperFields;
     /** ResetSharedRessources atomic physics sub-stage
      *
      * reset all superCell-shared atomicPhysics-transition's resource usage tracking, such as:
@@ -54,11 +55,11 @@ namespace picongpu::particles::atomicPhysics::stage
 
         HINLINE static void resetFieldEnergyUseCache(pmacc::DataConnector& dc)
         {
-            using FieldEnergyUseCacheField = s_localHelperFields::FieldEnergyUseCacheField<Mapping>;
+            using FieldEnergyUseCacheField = localHelperFields::FieldEnergyUseCacheField<Mapping>;
 
             auto& fieldEnergyUseCacheField = *dc.get<FieldEnergyUseCacheField>("FieldEnergyUseCacheField");
             fieldEnergyUseCacheField.getDeviceBuffer().setValue(
-                s_localHelperFields::
+                localHelperFields::
                     FieldEnergyUseCache<FieldEnergyUseCacheField::Extent, FieldEnergyUseCacheField::StorageType>());
         }
 
@@ -66,9 +67,19 @@ namespace picongpu::particles::atomicPhysics::stage
             pmacc::DataConnector& dc,
             pmacc::AreaMapping<CORE + BORDER, MappingDesc> const mapper)
         {
-            auto& timeRemainingField = *dc.get<s_localHelperFields::TimeRemainingField<Mapping>>("TimeRemainingField");
+            auto& timeRemainingField = *dc.get<localHelperFields::TimeRemainingField<Mapping>>("TimeRemainingField");
 
-            using ElectronHistogram = typename picongpu::atomicPhysics::ElectronHistogram;
+            /** @note The better readable version:
+             *
+             * @code{.cpp}
+             * using ElectronHistogram = typename picongpu::atomicPhysics::ElectronHistogram;
+             * @endcode
+             *
+             * causes a spurious compiler warning in gcc-9 and gcc-10 as discussed here,
+             * https://gcc.gnu.org/pipermail/gcc-patches/2020-May/546603.html,
+             */
+            using picongpu::atomicPhysics::ElectronHistogram;
+
             auto& electronHistogramField = *dc.get<
                 particles::atomicPhysics::electronDistribution::LocalHistogramField<ElectronHistogram, Mapping>>(
                 "Electron_HistogramField");

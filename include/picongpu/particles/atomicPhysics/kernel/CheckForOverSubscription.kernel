@@ -151,11 +151,11 @@ namespace picongpu::particles::atomicPhysics::kernel
                     //  / (sim.unit.mass() * sim.unit.time()^4 * sim.unit.charge()^2)
                     // = sim.unit.mass() * sim.unit.length()^2/ (sim.unit.time()^2 * sim.unit.length())
                     // sim.unit.energy()
-                    auto const eFieldEnergy = eps0HalfTimesCellVolume * pmacc::math::l2norm2(eFieldBox(cellIndex));
+                    float_X const eFieldEnergy = eps0HalfTimesCellVolume * pmacc::math::l2norm2(eFieldBox(cellIndex));
 
                     // eV * 1 = eV * sim.unit.energy()/sim.unit.energy() = (ev / sim.unit.energy()) * sim.unit.energy()
                     // sim.unit.energy()
-                    auto const eFieldEnergyUse
+                    float_X const eFieldEnergyUse
                         = picongpu::sim.pic.get_eV() * eFieldEnergyUseCache.energyUsed(linearCellIndex);
 
                     float_X rejectionProbability;
@@ -165,11 +165,11 @@ namespace picongpu::particles::atomicPhysics::kernel
                         // cell is oversubscribed by suggested changes
 
                         // calculate rejection probability
-                        rejectionProbability = math::max(
+                        rejectionProbability = pmacc::math::max(
                             // proportion of weight we want to reject
                             (eFieldEnergyUse - eFieldEnergy) / eFieldEnergyUse,
                             // but approximately at least one average one macro ion per cell should be rejected
-                            1 / sim.getTypicalNumParticlesPerCell());
+                            1._X / static_cast<float_X>(sim.getTypicalNumParticlesPerCell()));
 
                         // set flag that we found at least one over subscribed resource
                         sharedResourcesOverSubscribed = true;

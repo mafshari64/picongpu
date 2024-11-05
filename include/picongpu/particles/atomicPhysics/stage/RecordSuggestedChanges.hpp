@@ -23,6 +23,7 @@
 
 #include "picongpu/defines.hpp"
 #include "picongpu/particles/atomicPhysics/electronDistribution/LocalHistogramField.hpp"
+#include "picongpu/particles/atomicPhysics/enums/TransitionOrdering.hpp"
 #include "picongpu/particles/atomicPhysics/kernel/RecordSuggestedChanges.kernel"
 #include "picongpu/particles/atomicPhysics/localHelperFields/FieldEnergyUseCacheField.hpp"
 #include "picongpu/particles/atomicPhysics/localHelperFields/TimeRemainingField.hpp"
@@ -94,8 +95,9 @@ namespace picongpu::particles::atomicPhysics::stage
                     mapper,
                     atomicData.template getChargeStateDataDataBox<false>(),
                     atomicData.template getAtomicStateDataDataBox<false>(),
-                    atomicData
-                        .template getBoundFreeTransitionDataBox<false, s_enums::TransitionOrdering::byLowerState>(),
+                    atomicData.template getBoundFreeTransitionDataBox<
+                        false,
+                        picongpu::particles::atomicPhysics::enums::TransitionOrdering::byLowerState>(),
                     timeRemainingField.getDeviceDataBox(),
                     electronHistogramField.getDeviceDataBox(),
                     fieldEnergyUseCacheField.getDeviceDataBox(),
