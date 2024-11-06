@@ -1,4 +1,4 @@
-/* Copyright 2023 Brian Marre
+/* Copyright 2023-2024 Brian Marre
  *
  * This file is part of PIConGPU.
  *
@@ -44,7 +44,7 @@ namespace picongpu::particles::atomicPhysics
 
             ion[boundElectrons_] = numberBoundElectrons;
 
-            if constexpr(traits::has<T_Ion>(Tags::Ion{}))
+            if constexpr(traits::hasParticleTypeTag<Tags::Ion, T_Ion>())
             {
                 /* both boundElectrons and atomicStateCollectionIndex particle attribute must be set consistently,
                  *  but we lack access to the atomicStateData to correctly update atomicStateCollectionIndex

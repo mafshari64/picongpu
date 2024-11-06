@@ -119,11 +119,15 @@ namespace picongpu::particles::atomicPhysics
 
     namespace traits
     {
+        //! check if specified ParticleType has the specified ParticleTag
+        //!@{
+        //! not found default case
         template<typename T_ParticleType, typename T_ParticleTypeTag, typename = void>
         struct IsParticleType : std::false_type
         {
         };
 
+        //! found case
         template<typename T_ParticleType, typename T_ParticleTypeTag>
         struct IsParticleType<
             T_ParticleType,
@@ -132,8 +136,10 @@ namespace picongpu::particles::atomicPhysics
         {
         };
 
+        //! short hand
         template<typename T_ParticleType, typename T_ParticleTypeTag>
         using IsParticleType_t = typename IsParticleType<T_ParticleType, T_ParticleTypeTag>::type;
+        //@}
 
         template<typename T_FrameType>
         struct GetParticleType
@@ -141,33 +147,44 @@ namespace picongpu::particles::atomicPhysics
             using type = typename pmacc::traits::Resolve<
                 typename pmacc::traits::GetFlagType<T_FrameType, atomicPhysicsParticle<>>::type>::type;
         };
-
+        //! short hand
         template<typename T_FrameType>
         using GetParticleType_t = typename GetParticleType<T_FrameType>::type;
 
-        template<typename T_Particle, typename T_ParticleTypeTag>
-        constexpr bool has([[maybe_unused]] T_ParticleTypeTag const& tag)
+        //! check whether particle belongs to a species with given ParticleTypeTag
+        //!@{
+        template<typename T_ParticleTypeTag, typename T_Particle>
+        HDINLINE bool hasParticleTypeTag(T_Particle const&)
+        {
+            return hasParticleTypeTag<T_ParticleTypeTag, T_Particle>();
+        }
+
+        template<typename T_ParticleTypeTag, typename T_Particle>
+        constexpr bool hasParticleTypeTag()
         {
             using FrameType = typename std::decay_t<T_Particle>::FrameType;
             constexpr bool hasParticleType = pmacc::traits::HasFlag<FrameType, atomicPhysicsParticle<>>::type::value;
 
-            return hasParticleType && IsParticleType<GetParticleType_t<FrameType>, Tags::Ion>::value;
+            return hasParticleType && IsParticleType<GetParticleType_t<FrameType>, T_ParticleTypeTag>::value;
         }
+        //!@}
 
-        template<typename T_MPLSeq, typename T_Tag>
+        //! filter species list by ParticleTypeTag
+        template<typename T_MPLSeq, typename T_ParticleTypeTag>
         struct FilterByParticleType
         {
             using SpeciesWithAtomicPhysics =
                 typename pmacc::particles::traits::FilterByFlag<T_MPLSeq, atomicPhysicsParticle<>>::type;
 
             template<typename T_Species>
-            using IsTagedType = IsParticleType_t<GetParticleType_t<typename T_Species::FrameType>, T_Tag>;
+            using IsTagedType = IsParticleType_t<GetParticleType_t<typename T_Species::FrameType>, T_ParticleTypeTag>;
 
             using type = pmacc::mp_copy_if<SpeciesWithAtomicPhysics, IsTagedType>;
         };
 
-        template<typename T_MPLSeq, typename T_Tag>
-        using FilterByParticleType_t = typename FilterByParticleType<T_MPLSeq, T_Tag>::type;
+        //! short hand
+        template<typename T_MPLSeq, typename T_ParticleTypeTag>
+        using FilterByParticleType_t = typename FilterByParticleType<T_MPLSeq, T_ParticleTypeTag>::type;
 
     } // namespace traits
 } // namespace picongpu::particles::atomicPhysics
