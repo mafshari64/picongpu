@@ -78,7 +78,7 @@ namespace picongpu
              * The particular used parameter structures do not have to inherit this, but must define same members
              * with same meaning.
              */
-            struct PlaneWaveParams
+            struct PlaneWaveParams : public profiles::BaseParam
             {
                 /** Wave length along propagation direction
                  *

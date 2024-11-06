@@ -70,7 +70,7 @@ namespace picongpu::fields::incidentField
      * The particular used parameter structures do not have to inherit this, but must define same members
      * with same meaning.
      */
-    struct PyPIConGPULaserBaseParam
+    struct PyPIConGPULaserBaseParam : public profiles::BaseParam
     {
         static constexpr float_64 WAVE_LENGTH_SI = {{{wave_length_si}}}; // m
         static constexpr float_64 AMPLITUDE_SI = {{{E0_si}}}; // V/m

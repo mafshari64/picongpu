@@ -35,7 +35,7 @@ namespace picongpu
 
             namespace profiles
             {
-                struct MyGaussianParam
+                struct MyGaussianParam : public profiles::BaseParam
                 {
                     static constexpr float_64 WAVE_LENGTH_SI = 800e-9; // TIME_PERIOD_SI * sim.si.getSpeedOfLight();
                     static constexpr float_64 TIME_PERIOD_SI = WAVE_LENGTH_SI / sim.si.getSpeedOfLight();
