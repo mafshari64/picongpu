@@ -33,13 +33,22 @@
 
 namespace picongpu::particles::atomicPhysics::electronDistribution
 {
+    namespace enums
+    {
+        enum struct BinSelection : uint8_t
+        {
+            OnlyOverSubscribed,
+            All
+        };
+    } // namespace enums
+
     /** debug only, print content and bins of histogram to console
      *
      * @attention only creates output if atomicPhysics debug setting CPU_OUTPUT_ACTIVE == True
      * @attention only useful if compiling for serial backend, otherwise output for different histograms will
      * interleave
      */
-    template<bool printOnlyOverSubscribed>
+    template<enums::BinSelection T_BinSelection>
     struct PrintHistogramToConsole
     {
         //! cpu version
@@ -63,7 +72,7 @@ namespace picongpu::particles::atomicPhysics::electronDistribution
 
             for(uint32_t i = 0u; i < numBins; i++)
             {
-                if constexpr(printOnlyOverSubscribed)
+                if constexpr(T_BinSelection == enums::BinSelection::OnlyOverSubscribed)
                 {
                     if(histogram.getBinWeight0(i) >= histogram.getBinDeltaWeight(i))
                         continue;

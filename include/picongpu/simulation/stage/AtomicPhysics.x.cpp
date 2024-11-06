@@ -1,4 +1,4 @@
-/* Copyright 2022-2023 Brian Marre
+/* Copyright 2022-2024 Brian Marre
  *
  * This file is part of PIConGPU.
  *
@@ -70,6 +70,18 @@ namespace picongpu::simulation::stage
 {
     namespace detail
     {
+        namespace enums
+        {
+            enum struct Loop : uint8_t
+            {
+                SubStep,
+                ChooseTransition,
+                RejectOverSubscription
+            };
+        } // namespace enums
+
+        namespace debug = picongpu::atomicPhysics::debug;
+
         /** atomic physics stage
          *
          * models excited atomic state and ionization dynamics
@@ -96,15 +108,17 @@ namespace picongpu::simulation::stage
         private:
             // linearized dataBox of SuperCellField
             template<typename T_Field>
-            using S_LinearizedBox = DataBoxDim1Access<typename T_Field::DataBoxType>;
+            using LinearizedBox = DataBoxDim1Access<typename T_Field::DataBoxType>;
 
-            using S_OverSubscribedField
+            using OverSubscribedField
                 = picongpu::particles::atomicPhysics::localHelperFields::ElectronHistogramOverSubscribedField<
                     picongpu::MappingDesc>;
-            using S_TimeRemainingField
+            using TimeRemainingField
                 = particles::atomicPhysics::localHelperFields::TimeRemainingField<picongpu::MappingDesc>;
-            using S_FoundUnboundField
+            using FoundUnboundField
                 = particles::atomicPhysics::localHelperFields::FoundUnboundIonField<picongpu::MappingDesc>;
+
+            using BinSelection = picongpu::particles::atomicPhysics::electronDistribution::enums::BinSelection;
 
             //! species lists
             //!@{
@@ -119,11 +133,98 @@ namespace picongpu::simulation::stage
             using IPDIonSpecies = MakeSeq_t<AtomicPhysicsIonSpecies, OnlyIPDIonSpecies>;
             //!@}
 
+            //! debug print to console
+            //!@{
+
+            //! control multiple location debug prints depending on debug output setting
+            template<enums::Loop T_Loop>
+            static constexpr bool debugPrintActive()
+            {
+                constexpr bool isSubStepLoop = (T_Loop == enums::Loop::SubStep);
+                constexpr bool isChooseTransition = (T_Loop == enums::Loop::ChooseTransition);
+                constexpr bool isRejectOverSubscription = (T_Loop == enums::Loop::RejectOverSubscription);
+
+                constexpr bool isActive = (isSubStepLoop)
+                    || (isChooseTransition && debug::kernel::recordSuggestedChanges::PRINT_DEBUG_TO_CONSOLE)
+                    || (isRejectOverSubscription && debug::kernel::rollForOverSubscription::PRINT_DEBUG_TO_CONSOLE);
+
+                return isActive;
+            }
+
+            //! print electron histogram to console, debug only
+            template<BinSelection T_BinSelection, enums::Loop T_Loop>
+            HINLINE static void printHistogramToConsole(picongpu::MappingDesc const& mappingDesc, std::string name)
+            {
+                constexpr bool printActive = debug::electronHistogram::PRINT_TO_CONSOLE && debugPrintActive<T_Loop>();
+                if constexpr(printActive)
+                {
+                    std::cout << name << std::endl;
+                    picongpu::particles::atomicPhysics::stage::DumpSuperCellDataToConsole<
+                        picongpu::particles::atomicPhysics::electronDistribution::
+                            LocalHistogramField<picongpu::atomicPhysics::ElectronHistogram, picongpu::MappingDesc>,
+                        picongpu::particles::atomicPhysics::electronDistribution::PrintHistogramToConsole<
+                            T_BinSelection>>{}(mappingDesc, "Electron_HistogramField");
+                }
+            }
+
+            //! print ElectronHistogramOverSubscribedField to console, debug only
+            HINLINE static void printOverSubscriptionFieldToConsole(picongpu::MappingDesc const& mappingDesc)
+            {
+                if constexpr(debug::rejectionProbabilityCache::PRINT_TO_CONSOLE)
+                    picongpu::particles::atomicPhysics::stage::DumpSuperCellDataToConsole<
+                        picongpu::particles::atomicPhysics::localHelperFields::ElectronHistogramOverSubscribedField<
+                            picongpu::MappingDesc>,
+                        picongpu::particles::atomicPhysics::localHelperFields::PrintOverSubcriptionFieldToConsole>{}(
+                        mappingDesc,
+                        "ElectronHistogramOverSubscribedField");
+            }
+
+            //! print rejectionProbabilityCache to console, debug only
+            HINLINE static void printRejectionProbabilityCacheToConsole(picongpu::MappingDesc const& mappingDesc)
+            {
+                if constexpr(debug::rejectionProbabilityCache::PRINT_TO_CONSOLE)
+                {
+                    picongpu::particles::atomicPhysics::stage::DumpSuperCellDataToConsole<
+                        picongpu::particles::atomicPhysics::localHelperFields ::RejectionProbabilityCacheField<
+                            picongpu::MappingDesc>,
+                        picongpu::particles::atomicPhysics::localHelperFields ::
+                            PrintRejectionProbabilityCacheToConsole<true>>{}(
+                        mappingDesc,
+                        "RejectionProbabilityCacheField");
+                }
+            }
+
+            //! print local time remaining to console, debug only
+            HINLINE static void printTimeRemainingToConsole(picongpu::MappingDesc const& mappingDesc)
+            {
+                if constexpr(debug::timeRemaining::PRINT_TO_CONSOLE)
+                {
+                    picongpu::particles::atomicPhysics::stage::DumpSuperCellDataToConsole<
+                        picongpu::particles::atomicPhysics::localHelperFields::TimeRemainingField<
+                            picongpu::MappingDesc>,
+                        picongpu::particles::atomicPhysics::localHelperFields::PrintTimeRemaingToConsole>{}(
+                        mappingDesc,
+                        "TimeRemainingField");
+                }
+            }
+
+            //! print local time step to console, debug only
+            HINLINE static void printTimeStepToConsole(picongpu::MappingDesc const& mappingDesc)
+            {
+                if constexpr(debug::timeStep::PRINT_TO_CONSOLE)
+                    picongpu::particles::atomicPhysics::stage::DumpSuperCellDataToConsole<
+                        picongpu::particles::atomicPhysics::localHelperFields::TimeStepField<picongpu::MappingDesc>,
+                        picongpu::particles::atomicPhysics::localHelperFields::PrintTimeStepToConsole>{}(
+                        mappingDesc,
+                        "TimeStepField");
+            }
+            //!@}
+
             //! set timeRemaining to PIC-time step
             HINLINE static void setTimeRemaining()
             {
                 pmacc::DataConnector& dc = pmacc::Environment<>::get().DataConnector();
-                auto& localTimeRemainingField = *dc.get<S_TimeRemainingField>("TimeRemainingField");
+                auto& localTimeRemainingField = *dc.get<TimeRemainingField>("TimeRemainingField");
                 localTimeRemainingField.getDeviceBuffer().setValue(picongpu::sim.pic.getDt()); // sim.unit.time()
             }
 
@@ -142,61 +243,9 @@ namespace picongpu::simulation::stage
             HINLINE static void resetFoundUnboundIon()
             {
                 pmacc::DataConnector& dc = pmacc::Environment<>::get().DataConnector();
-                auto& foundUnboundIonField = *dc.get<S_FoundUnboundField>("FoundUnboundIonField");
+                auto& foundUnboundIonField = *dc.get<FoundUnboundField>("FoundUnboundIonField");
                 foundUnboundIonField.getDeviceBuffer().setValue(0._X);
             };
-
-            //! print electron histogram to console, debug only
-            template<bool T_printOnlyOverSubscribed>
-            HINLINE static void printHistogramToConsole(picongpu::MappingDesc const& mappingDesc)
-            {
-                picongpu::particles::atomicPhysics::stage::DumpSuperCellDataToConsole<
-                    picongpu::particles::atomicPhysics::electronDistribution::
-                        LocalHistogramField<picongpu::atomicPhysics::ElectronHistogram, picongpu::MappingDesc>,
-                    picongpu::particles::atomicPhysics::electronDistribution::PrintHistogramToConsole<
-                        T_printOnlyOverSubscribed>>{}(mappingDesc, "Electron_HistogramField");
-            }
-
-            //! print ElectronHistogramOverSubscribedField to console, debug only
-            HINLINE static void printOverSubscriptionFieldToConsole(picongpu::MappingDesc const& mappingDesc)
-            {
-                picongpu::particles::atomicPhysics::stage::DumpSuperCellDataToConsole<
-                    picongpu::particles::atomicPhysics::localHelperFields::ElectronHistogramOverSubscribedField<
-                        picongpu::MappingDesc>,
-                    picongpu::particles::atomicPhysics::localHelperFields::PrintOverSubcriptionFieldToConsole>{}(
-                    mappingDesc,
-                    "ElectronHistogramOverSubscribedField");
-            }
-
-            //! print rejectionProbabilityCache to console, debug only
-            HINLINE static void printRejectionProbabilityCacheToConsole(picongpu::MappingDesc const& mappingDesc)
-            {
-                picongpu::particles::atomicPhysics::stage::DumpSuperCellDataToConsole<
-                    picongpu::particles::atomicPhysics::localHelperFields ::RejectionProbabilityCacheField<
-                        picongpu::MappingDesc>,
-                    picongpu::particles::atomicPhysics::localHelperFields ::PrintRejectionProbabilityCacheToConsole<
-                        true>>{}(mappingDesc, "RejectionProbabilityCacheField");
-            }
-
-            //! print local time remaining to console, debug only
-            HINLINE static void printTimeRemainingToConsole(picongpu::MappingDesc const& mappingDesc)
-            {
-                picongpu::particles::atomicPhysics::stage::DumpSuperCellDataToConsole<
-                    picongpu::particles::atomicPhysics::localHelperFields::TimeRemainingField<picongpu::MappingDesc>,
-                    picongpu::particles::atomicPhysics::localHelperFields::PrintTimeRemaingToConsole>{}(
-                    mappingDesc,
-                    "TimeRemainingField");
-            }
-
-            //! print local time step to console, debug only
-            HINLINE static void printTimeStepToConsole(picongpu::MappingDesc const& mappingDesc)
-            {
-                picongpu::particles::atomicPhysics::stage::DumpSuperCellDataToConsole<
-                    picongpu::particles::atomicPhysics::localHelperFields::TimeStepField<picongpu::MappingDesc>,
-                    picongpu::particles::atomicPhysics::localHelperFields::PrintTimeStepToConsole>{}(
-                    mappingDesc,
-                    "TimeStepField");
-            }
 
             HINLINE static void resetAcceptStatus(picongpu::MappingDesc const& mappingDesc)
             {
@@ -209,7 +258,7 @@ namespace picongpu::simulation::stage
 
             HINLINE static void debugForceConstantElectronTemperature([[maybe_unused]] uint32_t const currentStep)
             {
-                if constexpr(picongpu::atomicPhysics::debug::scFlyComparison::FORCE_CONSTANT_ELECTRON_TEMPERATURE)
+                if constexpr(debug::scFlyComparison::FORCE_CONSTANT_ELECTRON_TEMPERATURE)
                 {
                     using ForEachElectronSpeciesSetTemperature = pmacc::meta::ForEach<
                         AtomicPhysicsElectronSpecies,
@@ -226,10 +275,7 @@ namespace picongpu::simulation::stage
                     particles::atomicPhysics::stage::BinElectrons<boost::mpl::_1>>;
                 ForEachElectronSpeciesBinElectrons{}(mappingDesc);
 
-                if constexpr(picongpu::atomicPhysics::debug::electronHistogram::PRINT_TO_CONSOLE)
-                {
-                    printHistogramToConsole</*print all bins*/ false>(mappingDesc);
-                }
+                printHistogramToConsole<BinSelection::All, enums::Loop::SubStep>(mappingDesc, "[after binning]");
             }
 
             //! calculate ionization potential depression parameters for every superCell
@@ -276,7 +322,7 @@ namespace picongpu::simulation::stage
                     AtomicPhysicsIonSpecies,
                     particles::atomicPhysics::stage::DumpRateCacheToConsole<boost::mpl::_1>>;
 
-                if constexpr(picongpu::atomicPhysics::debug::rateCache::PRINT_TO_CONSOLE)
+                if constexpr(debug::rateCache::PRINT_TO_CONSOLE)
                     ForEachIonSpeciesDumpRateCacheToConsole{}(mappingDesc);
             }
 
@@ -303,7 +349,7 @@ namespace picongpu::simulation::stage
                 ForEachIonSpeciesChooseTransition{}(mappingDesc, currentStep);
             }
 
-            // record all shared resources usage by accepted transitions
+            //! record all shared resources usage by accepted transitions
             HINLINE static void recordSuggestedChanges(picongpu::MappingDesc const& mappingDesc)
             {
                 picongpu::particles::atomicPhysics::stage::ResetDeltaWeightElectronHistogram<
@@ -315,7 +361,7 @@ namespace picongpu::simulation::stage
             }
 
             // check if an electron histogram bin () is over subscription --> superCellOversubScriptionField
-            template<typename T_SuperCellOversubScriptionField, typename T_DeviceReduce>
+            template<enums::Loop T_Loop, typename T_SuperCellOversubScriptionField, typename T_DeviceReduce>
             HINLINE static bool isAnElectronHistogramOverSubscribed(
                 picongpu::MappingDesc const& mappingDesc,
                 T_SuperCellOversubScriptionField& perSuperCellElectronHistogramOverSubscribedField,
@@ -327,7 +373,7 @@ namespace picongpu::simulation::stage
                 picongpu::particles::atomicPhysics::stage::CheckForOverSubscription<T_numberAtomicPhysicsIonSpecies>{}(
                     mappingDesc);
 
-                auto linearizedOverSubscribedBox = S_LinearizedBox<S_OverSubscribedField>(
+                auto linearizedOverSubscribedBox = LinearizedBox<OverSubscribedField>(
                     perSuperCellElectronHistogramOverSubscribedField.getDeviceDataBox(),
                     fieldGridLayoutOverSubscription);
 
@@ -335,16 +381,17 @@ namespace picongpu::simulation::stage
                     pmacc::math::operation::Or(),
                     linearizedOverSubscribedBox,
                     fieldGridLayoutOverSubscription.productOfComponents()));
-                // debug only
-                if constexpr(picongpu::atomicPhysics::debug::rejectionProbabilityCache::PRINT_TO_CONSOLE)
-                {
-                    std::cout << "\t\t a histogram oversubscribed?: " << (isOverSubscribed ? "true" : "false")
-                              << std::endl;
 
-                    printOverSubscriptionFieldToConsole(mappingDesc);
-                    printRejectionProbabilityCacheToConsole(mappingDesc);
-                    printHistogramToConsole</*print only oversubscribed*/ true>(mappingDesc);
+                // debug only
+                std::string message;
+                if constexpr(debugPrintActive<T_Loop>())
+                {
+                    message += "[histogram oversubscribed?]: ";
+                    message += (isOverSubscribed ? "true" : "false");
                 }
+                printHistogramToConsole<BinSelection::OnlyOverSubscribed, T_Loop>(mappingDesc, message);
+                printOverSubscriptionFieldToConsole(mappingDesc);
+                printRejectionProbabilityCacheToConsole(mappingDesc);
 
                 // check whether a least one histogram is oversubscribed
                 return isOverSubscribed;
@@ -394,7 +441,7 @@ namespace picongpu::simulation::stage
             {
                 pmacc::DataConnector& dc = pmacc::Environment<>::get().DataConnector();
 
-                auto& foundUnboundIonField = *dc.get<S_FoundUnboundField>("FoundUnboundIonField");
+                auto& foundUnboundIonField = *dc.get<FoundUnboundField>("FoundUnboundIonField");
                 DataSpace<picongpu::simDim> const fieldGridLayoutFoundUnbound
                     = foundUnboundIonField.getGridLayout().sizeWithoutGuardND();
 
@@ -411,7 +458,7 @@ namespace picongpu::simulation::stage
                         mappingDesc,
                         currentStep);
 
-                    auto linearizedFoundUnboundIonBox = S_LinearizedBox<S_FoundUnboundField>(
+                    auto linearizedFoundUnboundIonBox = LinearizedBox<FoundUnboundField>(
                         foundUnboundIonField.getDeviceDataBox(),
                         fieldGridLayoutFoundUnbound);
 
@@ -436,11 +483,11 @@ namespace picongpu::simulation::stage
                 T_DeviceReduce& deviceReduce)
             {
                 pmacc::DataConnector& dc = pmacc::Environment<>::get().DataConnector();
-                auto& localTimeRemainingField = *dc.get<S_TimeRemainingField>("TimeRemainingField");
+                auto& localTimeRemainingField = *dc.get<TimeRemainingField>("TimeRemainingField");
                 DataSpace<picongpu::simDim> const fieldGridLayoutTimeRemaining
                     = localTimeRemainingField.getGridLayout().sizeWithoutGuardND();
 
-                auto linearizedTimeRemainingBox = S_LinearizedBox<S_TimeRemainingField>(
+                auto linearizedTimeRemainingBox = LinearizedBox<TimeRemainingField>(
                     localTimeRemainingField.getDeviceDataBox(),
                     fieldGridLayoutTimeRemaining);
 
@@ -460,7 +507,7 @@ namespace picongpu::simulation::stage
                 pmacc::DataConnector& dc = pmacc::Environment<>::get().DataConnector();
 
                 auto& perSuperCellElectronHistogramOverSubscribedField
-                    = *dc.get<S_OverSubscribedField>("ElectronHistogramOverSubscribedField");
+                    = *dc.get<OverSubscribedField>("ElectronHistogramOverSubscribedField");
 
                 /// @todo find better way than hard code old value, Brian Marre, 2023
                 // `static` avoids that reduce is allocating each time step memory, which will reduce the performance.
@@ -494,7 +541,7 @@ namespace picongpu::simulation::stage
                         chooseTransition(mappingDesc, currentStep);
                         recordSuggestedChanges(mappingDesc);
 
-                        bool isOverSubscribed = isAnElectronHistogramOverSubscribed(
+                        bool isOverSubscribed = isAnElectronHistogramOverSubscribed<enums::Loop::ChooseTransition>(
                             mappingDesc,
                             perSuperCellElectronHistogramOverSubscribedField,
                             deviceLocalReduce);
@@ -503,33 +550,22 @@ namespace picongpu::simulation::stage
                         while(isOverSubscribed)
                         {
                             // at least one superCell electron histogram over-subscribed
-
-                            // debug only
-                            if constexpr(picongpu::atomicPhysics::debug::kernel::rollForOverSubscription::
-                                             PRINT_DEBUG_TO_CONSOLE)
-                            {
-                                printOverSubscriptionFieldToConsole(mappingDesc);
-                                printHistogramToConsole</*print only oversubscribed*/ true>(mappingDesc);
-
-                                if constexpr(picongpu::atomicPhysics::debug::rejectionProbabilityCache::
-                                                 PRINT_TO_CONSOLE)
-                                    printRejectionProbabilityCacheToConsole(mappingDesc);
-                            }
-
                             randomlyRejectTransitionFromOverSubscribedBins(mappingDesc, currentStep);
                             recordSuggestedChanges(mappingDesc);
 
-                            isOverSubscribed = isAnElectronHistogramOverSubscribed(
-                                mappingDesc,
-                                perSuperCellElectronHistogramOverSubscribedField,
-                                deviceLocalReduce);
+                            isOverSubscribed
+                                = isAnElectronHistogramOverSubscribed<enums::Loop::RejectOverSubscription>(
+                                    mappingDesc,
+                                    perSuperCellElectronHistogramOverSubscribedField,
+                                    deviceLocalReduce);
                         } // end remove over subscription loop
+
+                        if constexpr(debug::kernel::rollForOverSubscription::PRINT_DEBUG_TO_CONSOLE)
+                            std::cout << "[rejection loop complete]" << std::endl;
                     } // end choose transition loop
 
-                    if constexpr(picongpu::atomicPhysics::debug::timeRemaining::PRINT_TO_CONSOLE)
-                        printTimeRemainingToConsole(mappingDesc);
-                    if constexpr(picongpu::atomicPhysics::debug::timeStep::PRINT_TO_CONSOLE)
-                        printTimeStepToConsole(mappingDesc);
+                    printTimeRemainingToConsole(mappingDesc);
+                    printTimeStepToConsole(mappingDesc);
 
                     recordChanges(mappingDesc);
                     updateElectrons(mappingDesc, currentStep);

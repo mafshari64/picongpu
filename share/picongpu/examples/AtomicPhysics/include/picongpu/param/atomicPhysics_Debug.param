@@ -78,7 +78,6 @@ namespace picongpu::atomicPhysics::debug
         constexpr bool TRANSITION_DATA_SET_INDEX_RANGE_CHECKS = false;
     } // namespace rateCache
 
-
     namespace rejectionProbabilityCache
     {
         //! @attention only useful if using serial backend, no output unless compiling for cpu backend
@@ -140,6 +139,12 @@ namespace picongpu::atomicPhysics::debug
         //! @attention performance relevant
         constexpr bool CHECK_FOR_OVERFLOWS_IN_ACCUMULATON = false;
     } // namespace kernel::chooseTransition
+
+    namespace kernel::recordSuggestedChanges
+    {
+        //! @attention only useful if using serial backend, no output unless compiling for cpu backend
+        constexpr bool PRINT_DEBUG_TO_CONSOLE = false;
+    } // namespace kernel::recordSuggestedChanges
 
     namespace kernel::rollForOverSubscription
     {
