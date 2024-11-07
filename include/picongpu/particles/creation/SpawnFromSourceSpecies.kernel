@@ -156,6 +156,13 @@ namespace picongpu::particles::creation
             // create shared memory variable for kernel state
             PMACC_SMEM(worker, sharedKernelState, typename Modules::KernelStateType);
 
+            // create cache
+            auto cache = Modules::template InitCacheFunctor<T_KernelConfigOptions...>::getCache(
+                worker,
+                superCellIndex,
+                std::forward<T_AdditionalData>(additonalData)...);
+            // thread sync not necessary since we sync all threads later anyway, after completing shared memory init
+
             auto numberProductParticlesCtxArr
                 = lockstep::makeVar<TypeNumber>(forEachFrameSlot, static_cast<TypeNumber>(0u));
 
@@ -179,6 +186,7 @@ namespace picongpu::particles::creation
                         = productBox.getLastFrame(superCellIndex);
                     productSpeciesFrameArray[s_conv::u32(detail::Access::high)] = nullptr;
                 });
+            /// @attention thread sync for **both** shared memory init and InitCacheFunctor call
             worker.sync();
 
             // go over frames until all processed
@@ -204,6 +212,7 @@ namespace picongpu::particles::creation
                                 worker,
                                 sourceParticle,
                                 sharedKernelState,
+                                cache,
                                 additionalDataIndex,
                                 std::forward<T_AdditionalData>(additonalData)...);
 

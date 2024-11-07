@@ -20,6 +20,7 @@
 #pragma once
 
 #include "picongpu/defines.hpp"
+#include "picongpu/fields/FieldE.hpp"
 #include "picongpu/particles/atomicPhysics/ionizationPotentialDepression/LocalIPDInputFields.hpp"
 #include "picongpu/particles/atomicPhysics/ionizationPotentialDepression/kernel/ApplyIPDIonization.kernel"
 #include "picongpu/particles/atomicPhysics/ionizationPotentialDepression/stage/ApplyIPDIonization.def"
@@ -30,6 +31,8 @@
 #include "picongpu/particles/traits/GetIonizationElectronSpecies.hpp"
 
 #include <pmacc/particles/meta/FindByNameOrType.hpp>
+
+#include <type_traits>
 
 namespace picongpu::particles::atomicPhysics::ionizationPotentialDepression::stage
 {
@@ -75,8 +78,13 @@ namespace picongpu::particles::atomicPhysics::ionizationPotentialDepression::sta
         auto& zStarField = *dc.get<s_IPD::localHelperFields::ZStarField<picongpu::MappingDesc>>("ZStarField");
         auto idProvider = dc.get<IdProvider>("globalId");
 
+        auto& fieldE = *dc.get<FieldE>(FieldE::getName());
+
         // macro for call of kernel on every superCell, see pull request #4321
-        PMACC_LOCKSTEP_KERNEL(s_IPD::kernel::ApplyIPDIonizationKernel<T_IPDModel>())
+        PMACC_LOCKSTEP_KERNEL(s_IPD::kernel::ApplyIPDIonizationKernel<
+                                  T_IPDModel,
+                                  FieldE,
+                                  std::integral_constant<bool, AtomicDataType::switchFieldIonization>>())
             .config(mapper.getGridDim(), ions)(
                 mapper,
                 idProvider->getDeviceGenerator(),
@@ -87,6 +95,7 @@ namespace picongpu::particles::atomicPhysics::ionizationPotentialDepression::sta
                 atomicData.template getChargeStateDataDataBox</*on device*/ false>(),
                 atomicData.template getAtomicStateDataDataBox</*on device*/ false>(),
                 atomicData.template getIPDIonizationStateDataBox</*on device*/ false>(),
+                fieldE.getDeviceDataBox(),
                 debyeLengthField.getDeviceDataBox(),
                 temperatureEnergyField.getDeviceDataBox(),
                 zStarField.getDeviceDataBox());
