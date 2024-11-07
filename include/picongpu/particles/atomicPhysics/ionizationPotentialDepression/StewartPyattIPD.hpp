@@ -206,7 +206,7 @@ namespace picongpu::particles::atomicPhysics::ionizationPotentialDepression
             T_TemperatureEnergyBox const temperatureEnergyBox,
             T_ZStarBox const zStarBox)
         {
-            // eV/(sim.unit.mass() * sim.unit.length()^2 / sim.unit.time()^2)
+            // eV/(sim.unit.energy())
             constexpr float_X eV = sim.pic.get_eV();
 
             // eV/(sim.unit.mass() * sim.unit.length()^2 / sim.unit.time()^2) * unitless * sim.unit.charge()^2

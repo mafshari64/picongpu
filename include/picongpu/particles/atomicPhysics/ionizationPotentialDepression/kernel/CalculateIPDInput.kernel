@@ -25,6 +25,7 @@
 #pragma once
 
 #include "picongpu/defines.hpp"
+#include "picongpu/particles/atomicPhysics/KernelIndexation.hpp"
 
 #include <pmacc/particles/algorithm/ForEach.hpp>
 
@@ -52,15 +53,15 @@ namespace picongpu::particles::atomicPhysics::ionizationPotentialDepression::ker
          * @param areMapping mapping of blockIndex to block superCell index
          * @param timeRemainingBox deviceDataBox containing local atomicPhysics step
          *  time remaining for every superCell
-         * @param localSumWeightAllBox deviceDataBox giving access to the sum of weights of macro particles for all
-         *  local superCells
-         * @param localSumTemperatureFunctionalBox deviceDataBox giving access to the sum of the temperature
+         * @param sumWeightAllNormalizedBox deviceDataBox giving access to the sum of weights of macro particles for
+         * all local superCells
+         * @param sumTemperatureTermBox deviceDataBox giving access to the sum of the temperature
          *  functional of all macro particles for all local superCells
-         * @param localSumWeightElectronBox deviceDataBox giving access to the sum of weights of electron macro
+         * @param sumWeightElectronNormalizedBox deviceDataBox giving access to the sum of weights of electron macro
          *  particles for all local superCells
-         * @param localSumChargeNumberBox deviceDataBox giving access to the weighted sum of the charge number of ion
+         * @param sumChargeNumberBox deviceDataBox giving access to the weighted sum of the charge number of ion
          *  macro particles for all local superCells
-         * @param localSumChargeNumberSquaredBox deviceDataBox giving access to the weighted sum of the charge number
+         * @param sumChargeNumberSquaredBox deviceDataBox giving access to the weighted sum of the charge number
          *  squared of ion macro particles for all local superCells
          * @param temperatureEnergyBox deviceDataBox giving access to the local temperature * k_Boltzman for all
          *  local superCells, in sim.unit.mass() * sim.unit.length()^2 / sim.unit.time()^2, not weighted
@@ -85,19 +86,16 @@ namespace picongpu::particles::atomicPhysics::ionizationPotentialDepression::ker
             T_Worker const& worker,
             T_AreaMapping const areaMapping,
             T_LocalTimeRemainingDataBox const timeRemainingBox,
-            T_SumWeightAllFieldDataBox const localSumWeightAllBox,
-            T_SumTemperatureFunctionalFieldDataBox const localSumTemperatureFunctionalBox,
-            T_SumWeightElectronFieldBox const localSumWeightElectronBox,
-            T_SumChargeNumberIonsFieldDataBox const localSumChargeNumberBox,
-            T_SumChargeNumberSquaredIonsFieldDataBox const localSumChargeNumberSquaredBox,
+            T_SumWeightAllFieldDataBox const sumWeightAllNormalizedBox,
+            T_SumTemperatureFunctionalFieldDataBox const sumTemperatureTermBox,
+            T_SumWeightElectronFieldBox const sumWeightElectronNormalizedBox,
+            T_SumChargeNumberIonsFieldDataBox const sumChargeNumberBox,
+            T_SumChargeNumberSquaredIonsFieldDataBox const sumChargeNumberSquaredBox,
             T_LocalTemperatureFieldDataBox temperatureEnergyBox,
             T_ZStarFieldDataBox zStarBox,
             T_LocaDebyeLengthFieldDataBox debyeLengthBox) const
         {
-            // atomicPhysics superCellFields have no guard, but areMapping includes a guard
-            //  -> must subtract guard to get correct superCellFieldIdx
-            pmacc::DataSpace<picongpu::simDim> const superCellFieldIdx
-                = areaMapping.getSuperCellIndex(worker.blockDomIdxND()) - areaMapping.getGuardingSuperCells();
+            auto const superCellFieldIdx = KernelIndexation::getSuperCellFieldIndex(worker, areaMapping);
 
             // sim.unit.time()
             float_X const timeRemaining = timeRemainingBox(superCellFieldIdx);
@@ -107,70 +105,72 @@ namespace picongpu::particles::atomicPhysics::ionizationPotentialDepression::ker
                 return;
 
             // localSumFieldValues
-            //{
-            // sim.unit.mass() * sim.unit.length() / sim.unit.time() * weight / TYPICAL_PARTICLES_PER_MACROPARTICLE
-            float_X const localSumTemperatureFunctional = localSumTemperatureFunctionalBox(superCellFieldIdx);
-            // weight / TYPICAL_PARTICLES_PER_MACROPARTICLE
-            float_X const localSumWeightAll = localSumWeightAllBox(superCellFieldIdx);
-            // weight / TYPICAL_PARTICLES_PER_MACROPARTICLE
-            float_X const localSumWeightElectron = localSumWeightElectronBox(superCellFieldIdx);
+            //!@{
+            // sim.unit.energy() * weight / sim.unit.typicalNumParticlesPerMacroParticle()
+            float_X const sumTemperatureTerm = sumTemperatureTermBox(superCellFieldIdx);
+            // weight / sim.unit.typicalNumParticlesPerMacroParticle()
+            float_X const sumWeightAllNormalized = sumWeightAllNormalizedBox(superCellFieldIdx);
+            // weight / sim.unit.typicalNumParticlesPerMacroParticle()
+            float_X const sumWeightElectronNormalized = sumWeightElectronNormalizedBox(superCellFieldIdx);
 
-            // unitless * weight / TYPICAL_PARTICLES_PER_MACROPARTICLE
-            float_X const localSumChargeNumber = localSumChargeNumberBox(superCellFieldIdx);
-            // unitless * weight / TYPICAL_PARTICLES_PER_MACROPARTICLE
-            float_X const localSumChargeNumberSquared = localSumChargeNumberSquaredBox(superCellFieldIdx);
-            //}
-
-            // IPD input parameter
-            //{
-            // sim.unit.mass() * sim.unit.length()^2 / sim.unit.time()^2, not weighted
-            float_X& localTemperatureTimesk_Boltzman = temperatureEnergyBox(superCellFieldIdx);
-            // unitless, non weighted
-            float_X& localZStar = zStarBox(superCellFieldIdx);
-            // sim.unit.length(), non weighted
-            float_X& localDebyeLength = debyeLengthBox(superCellFieldIdx);
-            //}
+            // unitless * weight / sim.unit.typicalNumParticlesPerMacroParticle()
+            float_X const sumChargeNumber = sumChargeNumberBox(superCellFieldIdx);
+            // unitless * weight / sim.unit.typicalNumParticlesPerMacroParticle()
+            float_X const sumChargeNumberSquared = sumChargeNumberSquaredBox(superCellFieldIdx);
+            //!@}
 
             const auto onlyMaster = lockstep::makeMaster(worker);
 
             /// @todo use forEachSuperCell instead of letting workers wait, Brian Marre, 2024
             onlyMaster(
-                [&localSumTemperatureFunctional,
-                 &localSumWeightAll,
-                 &localSumWeightElectron,
-                 &localSumChargeNumber,
-                 &localSumChargeNumberSquared,
-                 &localTemperatureTimesk_Boltzman,
-                 &localZStar,
-                 &localDebyeLength]()
+                [&sumTemperatureTerm,
+                 &sumWeightAllNormalized,
+                 &sumWeightElectronNormalized,
+                 &sumChargeNumber,
+                 &sumChargeNumberSquared,
+                 &temperatureEnergyBox,
+                 &zStarBox,
+                 &debyeLengthBox,
+                 &superCellFieldIdx]()
                 {
-                    // (unitless * weight / TYPICAL_PARTICLES_PER_MACROPARTICLE)
-                    //  / (unitless * weight / TYPICAL_PARTICLES_PER_MACROPARTICLE)
-                    // unitless
-                    localZStar = localSumChargeNumberSquared / localSumChargeNumber;
+                    /* unit: (unitless * weight / typicalNumParticlesPerMacroParticle)
+                     *  / (unitless * weight / typicalNumParticlesPerMacroParticle) = unitless */
+                    zStarBox(superCellFieldIdx) = sumChargeNumberSquared / sumChargeNumber;
 
-                    // eV/(sim.unit.mass() * sim.unit.length()^2 / sim.unit.time()^2)
-                    constexpr float_X eV
-                        = static_cast<float_X>(picongpu::sim.si.conv().joule2eV(picongpu::sim.unit.energy()));
+                    // eV / unit_energy
+                    constexpr float_X eV = sim.pic.get_eV();
 
-                    // eV/(sim.unit.mass() * sim.unit.length()^2 / sim.unit.time()^2) * sim.unit.mass() *
-                    // sim.unit.length()^2 / sim.unit.time()^2
-                    //  * weight / TYPICAL_PARTICLES_PER_MACROPARTICLE / (weight / TYPICAL_PARTICLES_PER_MACROPARTICLE)
-                    // eV
-                    localTemperatureTimesk_Boltzman = eV * localSumTemperatureFunctional / localSumWeightAll;
+                    /* unit: unit_energy * weight / typicalNumParticlesPerMacroParticle
+                     *  / (weight / typicalNumParticlesPerMacroParticle) = unit_energy
+                     *
+                     * k_Boltzman * Temperature, energy equivalent to the local temperature */
+                    float_X const temperatureEnergy_PIC = sumTemperatureTerm / sumWeightAllNormalized;
 
-                    //! @note in case simDim = DIM2, we assumes sim.pic.getCellSize().productOfComponents() =
-                    //! sim.pic.getCellSize().x() * sim.pic.getCellSize().z() * (system size)
-                    // (sim.unit.charge()^2 / (sim.unit.energy() * sim.unit.length())) * sim.unit.length()^3 /
-                    // sim.unit.charge()^2 sim.unit.length()^2 / sim.unit.energy()
-                    constexpr float_X constFactorDebyeLength = picongpu::sim.pic.getEps0()
-                        * sim.pic.getCellSize().productOfComponents()
-                        / pmacc::math::cPow(picongpu::sim.pic.getElectronCharge(), 2u);
+                    // (eV / unit_energy) * unit_energy = eV
+                    temperatureEnergyBox(superCellFieldIdx) = eV * temperatureEnergy_PIC;
 
-                    // sqrt(sim.unit.length()^2 / sim.unit.energy() * sim.unit.energy()) = sim.unit.length()
-                    localDebyeLength = math::sqrt(
-                        constFactorDebyeLength * localTemperatureTimesk_Boltzman
-                        / (localSumChargeNumberSquared + localSumWeightElectron));
+                    /** @note in case simDim = DIM2, we assumes sim.pic.getCellSize().productOfComponents() =
+                     * sim.pic.getCellSize().x() * sim.pic.getCellSize().z() * (system size)
+                     *
+                     * unit: sim.unit.length()^3 */
+                    constexpr float_X volumeSuperCell = pmacc::math::CT::volume<picongpu::SuperCellSize>::type::value
+                        * picongpu::sim.pic.getCellSize().productOfComponents();
+
+                    /* unit: (unit_charge^2 / (unit_energy * unit_length)) * unit_length^3 / unit_charge^2
+                     *      / typicalNumParticlesPerMacroParticle)
+                     * = unit_length^2 / unit_energy / typicalNumParticlesPerMacroParticle
+                     */
+                    constexpr float_X constFactorDebyeLength = picongpu::sim.pic.getEps0() * volumeSuperCell
+                        / pmacc::math::cPow(picongpu::sim.pic.getElectronCharge(), 2u)
+                        / sim.unit.typicalNumParticlesPerMacroParticle();
+
+                    /** @note debyeLength = sqrt(eps_0 * k_B*T / sum_species(numberDensity_species * charge_species^2))
+                     *
+                     * unit:  sqrt(unit_length^2 / unit_energy / typicalNumParticlesPerMacroParticle
+                     *  * unit_energy / (1/typicalNumParticlesPerMacroParticle)) = unit_length */
+                    debyeLengthBox(superCellFieldIdx) = math::sqrt(
+                        constFactorDebyeLength * temperatureEnergy_PIC
+                        / (sumChargeNumberSquared + sumWeightElectronNormalized));
                 });
         }
     };
