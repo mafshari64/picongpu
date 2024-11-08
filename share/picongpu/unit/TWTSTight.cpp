@@ -56,13 +56,7 @@ using namespace pmacc;
  * @return true if equal, else false
  */
 template<typename T>
-static bool isApproxEqual(T const& a, T const& b)
-{
-    return a == Catch::Approx(b).margin(std::numeric_limits<T>::epsilon());
-}
-
-template<typename T>
-static bool isApproxEqual(T const& a, T const& b, T const& epsilon)
+static bool isApproxEqual(T const& a, T const& b, T const& epsilon = std::numeric_limits<T>::epsilon())
 {
     return a == Catch::Approx(b).margin(epsilon);
 }
@@ -161,61 +155,33 @@ struct twtsTightNumberTest
         resultHost.copyFrom(resultDevice);
 
         auto res = resultHost.getDataBox();
-        const float_64 Ex = float_64(0.18329124052693974);
-        const float_64 Ey = float_64(-0.009402050968104002);
-        const float_64 Ez = float_64(0.1054028749666347);
-        const float_64 Bx = float_64(3.5299706879027803e-10);
-        const float_64 By = float_64(5.334111474127282e-11);
-        const float_64 Bz = float_64(-6.090365721598194e-10);
-        const float_T epsilon = float_T(5.0e-6);
-        const float_T epsilon2 = float_T(5.0e-15);
-        bool isCorrect = isApproxEqual(precisionCast<float_T>(Ex), res[0], epsilon)
-            && isApproxEqual(testEfield.calcTWTSFieldX(pos, time), res[0], epsilon2);
-        std::cerr << std::setprecision(std::numeric_limits<float_T>::digits10);
-        if(!isCorrect)
-            std::cerr << "Ex (analytical reference):   " << Ex << "  , EField.calcTWTSFieldX (Device):   " << res[0]
-                      << "  , EField.calcTWTSFieldX (Host):   " << testEfield.calcTWTSFieldX(pos, time) << std::endl;
-        REQUIRE(isCorrect);
+        auto hostEfield = float3_X(
+            testEfield.calcTWTSFieldX(pos, time),
+            testEfield.calcTWTSFieldY(pos, time),
+            testEfield.calcTWTSFieldZ(pos, time));
+        auto hostBfield = float3_X(
+            testBfield.calcTWTSFieldX(pos, time),
+            testBfield.calcTWTSFieldY(pos, time),
+            testBfield.calcTWTSFieldZ(pos, time));
 
-        isCorrect = isApproxEqual(precisionCast<float_T>(Ey), res[1], epsilon)
-            && isApproxEqual(testEfield.calcTWTSFieldY(pos, time), res[1], epsilon2);
-        std::cerr << std::setprecision(std::numeric_limits<float_T>::digits10);
-        if(!isCorrect)
-            std::cerr << "Ey (analytical reference):   " << Ey << "  , EField.calcTWTSFieldY (Device):   " << res[1]
-                      << "  , EField.calcTWTSFieldY (Host):   " << testEfield.calcTWTSFieldY(pos, time) << std::endl;
-        REQUIRE(isCorrect);
-
-        isCorrect = isApproxEqual(precisionCast<float_T>(Ez), res[2], epsilon)
-            && isApproxEqual(testEfield.calcTWTSFieldZ(pos, time), res[2], epsilon2);
-        std::cerr << std::setprecision(std::numeric_limits<float_T>::digits10);
-        if(!isCorrect)
-            std::cerr << "Ez (analytical reference):   " << Ez << "  , EField.calcTWTSFieldZ (Device):   " << res[2]
-                      << "  , EField.calcTWTSFieldZ (Host):   " << testEfield.calcTWTSFieldZ(pos, time) << std::endl;
-        REQUIRE(isCorrect);
-
-        isCorrect = isApproxEqual(precisionCast<float_T>(Bx), res[3], epsilon)
-            && isApproxEqual(testBfield.calcTWTSFieldX(pos, time), res[3], epsilon2);
-        std::cerr << std::setprecision(std::numeric_limits<float_T>::digits10);
-        if(!isCorrect)
-            std::cerr << "Bx (analytical reference):   " << Bx << "  , BField.calcTWTSFieldX (Device):   " << res[3]
-                      << "  , BField.calcTWTSFieldX (Host):   " << testBfield.calcTWTSFieldX(pos, time) << std::endl;
-        REQUIRE(isCorrect);
-
-        isCorrect = isApproxEqual(precisionCast<float_T>(By), res[4], epsilon)
-            && isApproxEqual(testBfield.calcTWTSFieldY(pos, time), res[4], epsilon2);
-        std::cerr << std::setprecision(std::numeric_limits<float_T>::digits10);
-        if(!isCorrect)
-            std::cerr << "By (analytical reference):   " << By << "  , BField.calcTWTSFieldY (Device):   " << res[4]
-                      << "  , BField.calcTWTSFieldY (Host):   " << testBfield.calcTWTSFieldY(pos, time) << std::endl;
-        REQUIRE(isCorrect);
-
-        isCorrect = isApproxEqual(precisionCast<float_T>(Bz), res[5], epsilon)
-            && isApproxEqual(testBfield.calcTWTSFieldZ(pos, time), res[5], epsilon2);
-        std::cerr << std::setprecision(std::numeric_limits<float_T>::digits10);
-        if(!isCorrect)
-            std::cerr << "Bz (analytical reference):   " << Bz << "  , BField.calcTWTSFieldZ (Device):   " << res[5]
-                      << "  , BField.calcTWTSFieldZ (Host):   " << testBfield.calcTWTSFieldZ(pos, time) << std::endl;
-        REQUIRE(isCorrect);
+        const float3_64 refEfield = float3_64(0.18329124052693974, -0.009402050968104002, 0.1054028749666347);
+        const float3_64 refBfield = float3_64(3.5299706879027803e-10, 5.334111474127282e-11, -6.090365721598194e-10);
+        /* epsilon to compare to Mathematica implementation.
+         * Note: Reduction of epsilon would require replacing complex-valued bessel function support in
+         * PMacc with boost library calls that also work on device. */
+        const float_T epsilonAlgebra = float_T(5.0e-6);
+        /* Epsilon to compare host implementation to device implementation */
+        const float_T epsilonHostDevice = float_T(5.0e-15);
+        for(uint32_t i = 0; i < 3; i++)
+        {
+            CHECK(isApproxEqual(precisionCast<float_T>(refEfield[i]), res[i], epsilonAlgebra));
+            CHECK(isApproxEqual(hostEfield[i], res[i], epsilonHostDevice));
+        }
+        for(uint32_t i = 0; i < 3; i++)
+        {
+            CHECK(isApproxEqual(precisionCast<float_T>(refBfield[i]), res[i + 3], epsilonAlgebra));
+            CHECK(isApproxEqual(hostBfield[i], res[i + 3], epsilonHostDevice));
+        }
     }
 };
 
