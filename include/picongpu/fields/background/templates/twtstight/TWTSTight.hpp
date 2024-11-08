@@ -78,9 +78,6 @@ namespace picongpu::templates::twtstight
      */
     constexpr uint32_t numSigmas = 6;
 
-    /* define imaginary unit I */
-    constexpr complex_T I = complex_T(0, 1);
-
     /** Provides the E- or B-field functors of the TWTSTight laser for the
      *  fieldBackground and incidentField approaches.
      *  @tparam T_Field Specializes for E- or B-Field
@@ -143,6 +140,8 @@ namespace picongpu::templates::twtstight
         /** Polarization of TWTS laser with respect to x-axis around propagation direction [rad, default = 0. *
          * (PI/180.)] */
         PMACC_ALIGN(polAngle, float_X const);
+        /* imaginary unit I */
+        PMACC_ALIGN(I, complex_T const);
         PMACC_ALIGN(basicTWTSHelperVariables, std::array<float_T, 11u> const);
         PMACC_ALIGN(trigonometryShortcuts, std::array<float_T, 7u> const);
 

@@ -71,6 +71,7 @@ namespace picongpu::templates::twtstight
               phi,
               beta_0))
         , polAngle(polAngle)
+        , I(complex_T(0, 1))
         , basicTWTSHelperVariables(defineBasicHelperVariables(phi, beta_0, wavelength_SI, pulselength_SI, w_x_SI))
         , trigonometryShortcuts(defineTrigonometryShortcuts(basicTWTSHelperVariables, polAngle))
     {
