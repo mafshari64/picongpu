@@ -153,7 +153,7 @@ namespace picongpu::particles::atomicPhysics::stage
             //    upward bound-free transition rates, both collisional and field
             if constexpr(AtomicDataType::switchElectronicIonization)
             {
-                auto eField = dc.get<FieldE>(FieldE::getName());
+                auto& eField = *dc.get<FieldE>(FieldE::getName());
 
                 using FillRateCacheUpWardBoundFree = kernel::FillRateCacheKernel_BoundFree<
                     IPDModel,
@@ -172,7 +172,7 @@ namespace picongpu::particles::atomicPhysics::stage
                         timeRemainingField.getDeviceDataBox(),
                         rateCacheField.getDeviceDataBox(),
                         electronHistogramField.getDeviceDataBox(),
-                        eField->getDeviceDataBox(),
+                        eField.getDeviceDataBox(),
                         atomicData.template getChargeStateDataDataBox<false>(),
                         atomicData.template getAtomicStateDataDataBox<false>(),
                         atomicData.template getBoundFreeStartIndexBlockDataBox<false>(),

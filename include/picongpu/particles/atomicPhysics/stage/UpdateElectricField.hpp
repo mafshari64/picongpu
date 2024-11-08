@@ -1,4 +1,4 @@
-/* Copyright 2023 Brian Marre
+/* Copyright 2024 Brian Marre
  *
  * This file is part of PIConGPU.
  *
@@ -17,16 +17,16 @@
  * If not, see <http://www.gnu.org/licenses/>.
  */
 
-//! @file reset deltaWeight entry of all histogram bin
+//! @file update electric field with field ionization energy use
 
 #pragma once
 
 // need picongpu::atomicPhysics::ElectronHistogram from atomicPhysics.param
 #include "picongpu/defines.hpp"
-#include "picongpu/particles/atomicPhysics/electronDistribution/LocalHistogramField.hpp"
-#include "picongpu/particles/atomicPhysics/kernel/ResetDeltaWeightElectronHistogram.kernel"
+#include "picongpu/fields/FieldE.hpp"
+#include "picongpu/particles/atomicPhysics/kernel/UpdateElectricField.kernel"
+#include "picongpu/particles/atomicPhysics/localHelperFields/FieldEnergyUseCacheField.hpp"
 #include "picongpu/particles/atomicPhysics/localHelperFields/TimeRemainingField.hpp"
-#include "picongpu/particles/atomicPhysics/param.hpp"
 
 #include <pmacc/Environment.hpp>
 #include <pmacc/mappings/kernel/AreaMapping.hpp>
@@ -36,15 +36,16 @@
 
 namespace picongpu::particles::atomicPhysics::stage
 {
-    /** ResetDeltaWeightElectronHistogram atomic physics sub-stage
+    /** UpdateElectricField atomic physics sub-stage
      *
-     * reset deltaWeight entry for each electron histogram bin to 0
+     * remove the used field energy from the electric field by reducing the norm of the local E-Field vector to match
+     *  the energy use
      *
      * @tparam T_numberAtomicPhysicsIonSpecies specialization template parameter used to prevent compilation of all
      *  atomicPhysics kernels if no atomic physics species is present.
      */
     template<uint32_t T_numberAtomicPhysicsIonSpecies>
-    struct ResetDeltaWeightElectronHistogram
+    struct UpdateElectricField
     {
         //! call of kernel for every superCell
         HINLINE void operator()(picongpu::MappingDesc const mappingDesc) const
@@ -57,21 +58,22 @@ namespace picongpu::particles::atomicPhysics::stage
                 picongpu::particles::atomicPhysics::localHelperFields::TimeRemainingField<picongpu::MappingDesc>>(
                 "TimeRemainingField");
 
-            auto& electronHistogramField
-                = *dc.get<picongpu::particles::atomicPhysics::electronDistribution::
-                              LocalHistogramField<picongpu::atomicPhysics::ElectronHistogram, picongpu::MappingDesc>>(
-                    "Electron_HistogramField");
+            auto& eField = *dc.get<FieldE>(FieldE::getName());
 
-            // macro for call of kernel for every superCell
-            PMACC_LOCKSTEP_KERNEL(picongpu::particles::atomicPhysics::kernel::ResetDeltaWeightElectronHistogramKernel<
-                                      picongpu::atomicPhysics::ElectronHistogram,
+            using FieldEnergyUseCacheField
+                = picongpu::particles::atomicPhysics::localHelperFields::FieldEnergyUseCacheField<
+                    picongpu::MappingDesc>;
+            auto& fieldEnergyUseCacheField = *dc.get<FieldEnergyUseCacheField>("FieldEnergyUseCacheField");
+
+            // macro for call of kernel for every superCell, see pull request #4321
+            PMACC_LOCKSTEP_KERNEL(picongpu::particles::atomicPhysics::kernel::UpdateElectricFieldKernel<
+                                      FieldEnergyUseCacheField::ElementType,
                                       T_numberAtomicPhysicsIonSpecies>())
-                .template config<picongpu::atomicPhysics::ElectronHistogram::numberBins>(mapper.getGridDim())(
+                .template config<FieldEnergyUseCacheField::ElementType::numberCells>(mapper.getGridDim())(
                     mapper,
                     timeRemainingField.getDeviceDataBox(),
-                    electronHistogramField.getDeviceDataBox());
-
-            /// @todo implement photon histogram, Brian Marre, 2023
+                    eField.getDeviceDataBox(),
+                    fieldEnergyUseCacheField.getDeviceDataBox());
         }
     };
 } // namespace picongpu::particles::atomicPhysics::stage
