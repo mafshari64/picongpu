@@ -135,6 +135,7 @@ struct twtsTightNumberTest
             false,
             30. * (PI / 180.));
         using float_T = templates::twtstight::float_T;
+        using float3_T = ::pmacc::math::Vector<float_T, 3u>;
 
         constexpr uint32_t numBlocks = 1;
         constexpr uint32_t numThreadsPerBlock = 1;
@@ -166,6 +167,8 @@ struct twtsTightNumberTest
 
         const float3_64 refEfield = float3_64(0.18329124052693974, -0.009402050968104002, 0.1054028749666347);
         const float3_64 refBfield = float3_64(3.5299706879027803e-10, 5.334111474127282e-11, -6.090365721598194e-10);
+        const float3_T refEfieldT = precisionCast<float_T>(refEfield);
+        const float3_T refBfieldT = precisionCast<float_T>(refBfield);
         /* epsilon to compare to Mathematica implementation.
          * Note: Reduction of epsilon would require replacing complex-valued bessel function support in
          * PMacc with boost library calls that also work on device. */
@@ -174,12 +177,12 @@ struct twtsTightNumberTest
         const float_T epsilonHostDevice = float_T(5.0e-15);
         for(uint32_t i = 0; i < 3; i++)
         {
-            CHECK(isApproxEqual(precisionCast<float_T>(refEfield[i]), res[i], epsilonAlgebra));
+            CHECK(isApproxEqual(refEfieldT[i], res[i], epsilonAlgebra));
             CHECK(isApproxEqual(hostEfield[i], res[i], epsilonHostDevice));
         }
         for(uint32_t i = 0; i < 3; i++)
         {
-            CHECK(isApproxEqual(precisionCast<float_T>(refBfield[i]), res[i + 3], epsilonAlgebra));
+            CHECK(isApproxEqual(refBfieldT[i], res[i + 3], epsilonAlgebra));
             CHECK(isApproxEqual(hostBfield[i], res[i + 3], epsilonHostDevice));
         }
     }
