@@ -165,6 +165,9 @@ struct twtsTightNumberTest
             testBfield.calcTWTSFieldY(pos, time),
             testBfield.calcTWTSFieldZ(pos, time));
 
+// This combination of compilers has a bug that is triggered by Catch2 internally suppressing warnings.
+// See https://github.com/ComputationalRadiationPhysics/picongpu/pull/5174#issuecomment-2467890326
+#if(__GNUC__ != 11 || __CUDACC_VER_MAJOR__ != 11)
         const float3_64 refEfield = float3_64(0.18329124052693974, -0.009402050968104002, 0.1054028749666347);
         const float3_64 refBfield = float3_64(3.5299706879027803e-10, 5.334111474127282e-11, -6.090365721598194e-10);
         const float3_T refEfieldT = precisionCast<float_T>(refEfield);
@@ -185,6 +188,7 @@ struct twtsTightNumberTest
             CHECK(isApproxEqual(refBfieldT[i], res[i + 3], epsilonAlgebra));
             CHECK(isApproxEqual(hostBfield[i], res[i + 3], epsilonHostDevice));
         }
+#endif
     }
 };
 
