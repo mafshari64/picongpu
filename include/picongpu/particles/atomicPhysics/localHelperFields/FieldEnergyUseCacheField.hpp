@@ -58,10 +58,16 @@ namespace picongpu::particles::atomicPhysics::localHelperFields
                       << std::endl;
             for(uint32_t linearIndex = 0u; linearIndex < T_FieldEnergyUseCache::numberCells; ++linearIndex)
             {
-                std::cout << "\t"
-                          << pmacc::math::mapToND(T_FieldEnergyUseCache::Extent::toRT(), static_cast<int>(linearIndex))
-                                 .toString(",", "()");
-                std::cout << ": " << fieldEnergyUseCache.energyUsed(linearIndex) << std::endl;
+                auto const fieldEnergyUsed = fieldEnergyUseCache.energyUsed(linearIndex);
+                if(fieldEnergyUsed > 0._X)
+                {
+                    std::cout << "\t"
+                              << pmacc::math::mapToND(
+                                     T_FieldEnergyUseCache::Extent::toRT(),
+                                     static_cast<int>(linearIndex))
+                                     .toString(",", "()");
+                    std::cout << ": " << fieldEnergyUsed << std::endl;
+                }
             }
         }
 
