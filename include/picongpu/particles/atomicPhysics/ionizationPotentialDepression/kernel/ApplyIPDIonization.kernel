@@ -263,7 +263,8 @@ namespace picongpu::particles::atomicPhysics::ionizationPotentialDepression::ker
                 atomicStateBox.configNumber(ipdIonizationStateClctIdx));
 
             // eV
-            float_X const ionizationEnergyGroundState = chargeStateBox.ionizationEnergy(currentChargeState);
+            float_X const ionizationEnergy = chargeStateBox.ionizationEnergy(currentChargeState)
+                - atomicStateBox.energy(currentAtomicStateClctIdx);
 
             // eV
             float_X ipd = kernelState.superCellConstantIPD;
@@ -287,7 +288,7 @@ namespace picongpu::particles::atomicPhysics::ionizationPotentialDepression::ker
             }
 
             // eV
-            float_X const ipdIonizationEnergy = ionizationEnergyGroundState - ipd;
+            float_X const ipdIonizationEnergy = ionizationEnergy - ipd;
 
             if(ipdIonizationEnergy < 0._X)
             {
