@@ -17,18 +17,8 @@
  * If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** @file implements a super cell local cache of no-change transition rates for each
- *      atomic state of a species.
- *
- * no-change atomic physics transition rates(diagonal elements of rate matrix) are expensive
- *  to calculate and all have to be calculated anyway for the adaptive time step calculation.
- *
- * Therefore the are only calculated for all atomic states once per atomicPhysics substep
- *  and cached for use in the rate solver.
- *
- * Since no-change transition rates depend on the local electron spectrum, as well as all
- *  transition's parameters, they are super cell local, same as the electron spectrum.
- */
+/** @file implements a superCell field storing the field energy used by atomicPhysics processes for each cell of each
+ *  superCell. */
 
 #pragma once
 
