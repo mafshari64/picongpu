@@ -157,7 +157,7 @@ namespace picongpu::particles::creation
             PMACC_SMEM(worker, sharedKernelState, typename Modules::KernelStateType);
 
             // create cache
-            auto cache = Modules::template InitCacheFunctor<T_KernelConfigOptions...>::getCache(
+            auto cache = Modules::template InitCacheFunctor<__COUNTER__, T_KernelConfigOptions...>::getCache(
                 worker,
                 superCellIndex,
                 std::forward<T_AdditionalData>(additonalData)...);
