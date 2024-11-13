@@ -170,13 +170,9 @@ namespace picongpu::particles::atomicPhysics::rateCalculation
          *
          * @return unit: 1/picongpu::sim.unit.time()
          */
-        template<
-            typename T_EFieldType,
-            typename T_ChargeStateDataBox,
-            typename T_AtomicStateDataBox,
-            typename T_BoundFreeTransitionDataBox>
+        template<typename T_ChargeStateDataBox, typename T_AtomicStateDataBox, typename T_BoundFreeTransitionDataBox>
         HDINLINE static float_X rateADKFieldIonization(
-            T_EFieldType const eFieldNorm,
+            float_X const eFieldNorm,
             float_X const ionizationPotentialDepression,
             uint32_t const transitionCollectionIndex,
             T_ChargeStateDataBox const chargeStateDataBox,
@@ -215,14 +211,10 @@ namespace picongpu::particles::atomicPhysics::rateCalculation
          *
          * @return unit: 1/picongpu::sim.unit.time()
          */
-        template<
-            typename T_EFieldType,
-            typename T_ChargeStateDataBox,
-            typename T_AtomicStateDataBox,
-            typename T_BoundFreeTransitionDataBox>
+        template<typename T_ChargeStateDataBox, typename T_AtomicStateDataBox, typename T_BoundFreeTransitionDataBox>
         HDINLINE static float_X maximumRateADKFieldIonization(
-            T_EFieldType const maxEFieldNorm,
-            T_EFieldType const minEFieldNorm,
+            float_X const maxEFieldNorm,
+            float_X const minEFieldNorm,
             float_X const ionizationPotentialDepression,
             uint32_t const transitionCollectionIndex,
             T_ChargeStateDataBox const chargeStateDataBox,

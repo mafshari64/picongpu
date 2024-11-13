@@ -28,14 +28,23 @@
  *      framework
  */
 
-
 #pragma once
 
+#include "picongpu/defines.hpp"
 #include "picongpu/particles/atomicPhysics/SetAtomicState.hpp"
 #include "picongpu/particles/atomicPhysics/enums/ProcessClass.hpp"
 #include "picongpu/particles/atomicPhysics/initElectrons/CoMoving.hpp"
+#include "picongpu/particles/atomicPhysics/ionizationPotentialDepression/BarrierSupressionIonization.hpp"
 #include "picongpu/particles/creation/SpawnFromSourceSpecies.kernel"
 #include "picongpu/particles/creation/SpawnFromSourceSpeciesModuleInterfaces.hpp"
+
+#include <pmacc/dimensions/DataSpace.hpp>
+#include <pmacc/dimensions/SuperCellDescription.hpp>
+#include <pmacc/mappings/threads/ThreadCollective.hpp>
+#include <pmacc/math/operation/Assign.hpp>
+#include <pmacc/memory/boxes/CachedBox.hpp>
+#include <pmacc/memory/boxes/DataBox.hpp>
+#include <pmacc/memory/boxes/SharedBox.hpp>
 
 #include <cstdint>
 
@@ -45,9 +54,15 @@ namespace picongpu::particles::atomicPhysics::ionizationPotentialDepression::ker
     namespace s_interfaces = picongpu::particles::creation::moduleInterfaces;
 
     //! sanity checks for apply ApplyIPDIonizationKernel
-    template<typename T_IonBox, typename T_IonizationElectronBox, typename T_IPDModel>
+    template<
+        typename T_IonBox,
+        typename T_IonizationElectronBox,
+        typename T_IPDModel,
+        typename T_EField,
+        typename T_fieldIonizationActive>
     struct ApplyIPDIonizationSanityCheckInputs
-        : public s_interfaces::SanityCheckInputs<T_IonBox, T_IonizationElectronBox, T_IPDModel>
+        : public s_interfaces::
+              SanityCheckInputs<T_IonBox, T_IonizationElectronBox, T_IPDModel, T_EField, T_fieldIonizationActive>
     {
         template<
             // T_AdditionalData:
@@ -57,6 +72,7 @@ namespace picongpu::particles::atomicPhysics::ionizationPotentialDepression::ker
             typename T_ChargeStateDataBox,
             typename T_AtomicStateDataBox,
             typename T_IPDIonizationStateDataBox,
+            typename T_EFieldDataBox,
             typename... T_IPDInputBoxes
             //@}
             >
@@ -68,6 +84,7 @@ namespace picongpu::particles::atomicPhysics::ionizationPotentialDepression::ker
             T_ChargeStateDataBox const,
             T_AtomicStateDataBox const,
             T_IPDIonizationStateDataBox const,
+            T_EFieldDataBox const,
             T_IPDInputBoxes const...)
         {
             PMACC_CASSERT_MSG(
@@ -109,12 +126,13 @@ namespace picongpu::particles::atomicPhysics::ionizationPotentialDepression::ker
     struct KernelState
     {
         // eV
-        float_X ionizationPotentialDepression;
+        float_X superCellConstantIPD;
         uint32_t foundUnbound;
     };
 
-    template<typename T_IPDModel>
-    struct CalculateIPDValue : public s_interfaces::InitKernelStateFunctor<T_IPDModel>
+    template<typename T_IPDModel, typename T_EField, typename T_fieldIonizationActive>
+    struct CalculateIPDValue
+        : public s_interfaces::InitKernelStateFunctor<T_IPDModel, T_EField, T_fieldIonizationActive>
     {
         template<
             typename T_KernelState,
@@ -123,6 +141,7 @@ namespace picongpu::particles::atomicPhysics::ionizationPotentialDepression::ker
             typename T_ChargeStateDataBox,
             typename T_AtomicStateDataBox,
             typename T_IPDIonizationStateDataBox,
+            typename T_EFieldDataBox,
             typename... T_IPDInputBoxes>
         HDINLINE static void init(
             pmacc::DataSpace<picongpu::simDim> const,
@@ -133,40 +152,96 @@ namespace picongpu::particles::atomicPhysics::ionizationPotentialDepression::ker
             T_ChargeStateDataBox const,
             T_AtomicStateDataBox const,
             T_IPDIonizationStateDataBox const,
+            T_EFieldDataBox const,
             T_IPDInputBoxes const... ipdInputBoxes)
         {
             // eV
-            kernelState.ionizationPotentialDepression
-                = T_IPDModel::template calculateIPD<T_ChargeStateDataBox::atomicNumber>(
-                    superCellFieldIndex,
-                    ipdInputBoxes...);
+            kernelState.superCellConstantIPD = T_IPDModel::template calculateIPD<T_ChargeStateDataBox::atomicNumber>(
+                superCellFieldIndex,
+                ipdInputBoxes...);
             kernelState.foundUnbound = u32(false);
         }
     };
 
-    //! predict number pressure ionization electrons for one pressure ionization step and update ion atomic state
-    template<typename T_Number, typename T_IPDModel>
-    struct IPDIonizationPredictor : public s_interfaces::PredictorFunctor<T_Number, T_IPDModel>
+    template<typename T_IPDModel, typename T_EField, typename T_fieldIonizationActive>
+    struct CacheEFieldForSuperCell
+        : public s_interfaces::
+              InitCacheFunctor<pmacc::DataSpace<picongpu::simDim>, T_IPDModel, T_EField, T_fieldIonizationActive>
     {
         template<
             typename T_Worker,
+            typename T_LocalTimeRemainingBox,
+            typename T_FoundUnboundIonBox,
+            typename T_ChargeStateDataBox,
+            typename T_AtomicStateDataBox,
+            typename T_IPDIonizationStateDataBox,
+            typename T_EFieldDataBox,
+            typename... T_IPDInputBoxes>
+        HDINLINE static auto getCache(
+            T_Worker const& worker,
+            pmacc::DataSpace<picongpu::simDim> const superCellIndex,
+            T_LocalTimeRemainingBox const,
+            T_FoundUnboundIonBox const,
+            T_ChargeStateDataBox const,
+            T_AtomicStateDataBox const,
+            T_IPDIonizationStateDataBox const,
+            T_EFieldDataBox const eFieldBox,
+            T_IPDInputBoxes const... ipdInputBoxes)
+        {
+            if constexpr(T_fieldIonizationActive::value)
+            {
+                using SuperCellBlock = pmacc::SuperCellDescription<typename picongpu::SuperCellSize>;
+                /// @note cache is unique for kernel call by id and dataType, and thereby shared between workers
+                auto eFieldCache
+                    = CachedBox::create<__COUNTER__, typename T_EField::ValueType>(worker, SuperCellBlock());
+
+                pmacc::DataSpace<picongpu::simDim> const superCellCellOffset
+                    = superCellIndex * picongpu::SuperCellSize::toRT();
+
+                auto fieldEBlockToCache = eFieldBox.shift(superCellCellOffset);
+
+                pmacc::math::operation::Assign assign;
+                auto collective = makeThreadCollective<SuperCellBlock>();
+
+                collective(worker, assign, eFieldCache, fieldEBlockToCache);
+
+                return eFieldCache;
+            }
+            else
+            {
+                return 0._X;
+            }
+        }
+    };
+
+    //! predict number pressure ionization electrons for one pressure ionization step and update ion atomic state
+    template<typename T_Number, typename T_IPDModel, typename T_EField, typename T_fieldIonizationActive>
+    struct IPDIonizationPredictor
+        : public s_interfaces::PredictorFunctor<T_Number, T_IPDModel, T_EField, T_fieldIonizationActive>
+    {
+        template<
+            typename T_Worker,
+            typename T_EFieldCache,
             typename T_Ion,
             typename T_LocalTimeRemainingBox,
             typename T_FoundUnboundIonBox,
             typename T_AtomicStateDataBox,
             typename T_ChargeStateDataBox,
             typename T_IPDIonizationStateDataBox,
+            typename T_EFieldDataBox,
             typename... T_IPDInputBoxes>
         HDINLINE static T_Number getNumberNewParticles(
             T_Worker const& worker,
             T_Ion& ion,
             KernelState& kernelState,
+            T_EFieldCache const& eFieldCache,
             pmacc::DataSpace<picongpu::simDim> const superCellFieldIndex,
             T_LocalTimeRemainingBox const,
             T_FoundUnboundIonBox const,
             T_ChargeStateDataBox const chargeStateBox,
             T_AtomicStateDataBox const atomicStateBox,
             T_IPDIonizationStateDataBox const ipdIonizationStateBox,
+            T_EFieldDataBox const,
             T_IPDInputBoxes const...)
         {
             auto const currentAtomicStateClctIdx = ion[atomicStateCollectionIndex_];
@@ -189,9 +264,30 @@ namespace picongpu::particles::atomicPhysics::ionizationPotentialDepression::ker
 
             // eV
             float_X const ionizationEnergyGroundState = chargeStateBox.ionizationEnergy(currentChargeState);
+
             // eV
-            float_X const ipdIonizationEnergy
-                = ionizationEnergyGroundState - kernelState.ionizationPotentialDepression;
+            float_X ipd = kernelState.superCellConstantIPD;
+
+            if constexpr(T_fieldIonizationActive::value)
+            {
+                using VectorIdx = pmacc::DataSpace<picongpu::simDim>;
+
+                VectorIdx const superCellSize = picongpu::SuperCellSize::toRT();
+                VectorIdx const localCellIndex
+                    = pmacc::math::mapToND(superCellSize, static_cast<int>(ion[localCellIdx_]));
+
+                // sim.unit.eField()
+                float_X const eFieldNormCell = pmacc::math::l2norm(eFieldCache(localCellIndex));
+
+                float_X const eFieldNormAU = sim.pic.conv().eField2auEField(eFieldNormCell);
+                float_X const screenedCharge = chargeStateBox.screenedCharge(currentChargeState) - 1._X;
+
+                // eV
+                ipd += BarrierSupressionIonization::getIPD(screenedCharge, eFieldNormAU);
+            }
+
+            // eV
+            float_X const ipdIonizationEnergy = ionizationEnergyGroundState - ipd;
 
             if(ipdIonizationEnergy < 0._X)
             {
@@ -245,8 +341,9 @@ namespace picongpu::particles::atomicPhysics::ionizationPotentialDepression::ker
         }
     };
 
-    template<typename T_IPDModel>
-    struct WriteFoundUnboundToSuperCellField : public s_interfaces::WriteOutKernelStateFunctor<T_IPDModel>
+    template<typename T_IPDModel, typename T_EField, typename T_fieldIonizationActive>
+    struct WriteFoundUnboundToSuperCellField
+        : public s_interfaces::WriteOutKernelStateFunctor<T_IPDModel, T_EField, T_fieldIonizationActive>
     {
         template<
             typename T_KernelState,
@@ -255,6 +352,7 @@ namespace picongpu::particles::atomicPhysics::ionizationPotentialDepression::ker
             typename T_ChargeStateDataBox,
             typename T_AtomicStateDataBox,
             typename T_IPDIonizationStateDataBox,
+            typename T_EFieldDataBox,
             typename... T_IPDInputBoxes>
         HDINLINE static void postProcess(
             pmacc::DataSpace<picongpu::simDim> const,
@@ -265,6 +363,7 @@ namespace picongpu::particles::atomicPhysics::ionizationPotentialDepression::ker
             T_ChargeStateDataBox const,
             T_AtomicStateDataBox const,
             T_IPDIonizationStateDataBox const,
+            T_EFieldDataBox const,
             T_IPDInputBoxes const...)
         {
             uint32_t& foundUnbound = foundUnboundIonBox(superCellFieldIndex);
@@ -280,14 +379,17 @@ namespace picongpu::particles::atomicPhysics::ionizationPotentialDepression::ker
         InitAsCoMoving,
         KernelState,
         CalculateIPDValue,
+        CacheEFieldForSuperCell,
         SuperCellFieldIndexFunctor,
         WriteFoundUnboundToSuperCellField>;
 
     //! actual definition of ApplyIPDIonizationKernel
-    template<typename T_IPDModel>
+    template<typename T_IPDModel, typename T_EField, typename T_fieldIonizationActive>
     using ApplyIPDIonizationKernel = picongpu::particles::creation::SpawnFromSourceSpeciesKernelFramework<
         // T_TypeNumber
         uint8_t,
         ApplyIPDIonizationModulConfig,
-        T_IPDModel>;
+        T_IPDModel,
+        T_EField,
+        T_fieldIonizationActive>;
 } // namespace picongpu::particles::atomicPhysics::ionizationPotentialDepression::kernel

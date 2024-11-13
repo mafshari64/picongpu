@@ -23,29 +23,17 @@
 
 namespace picongpu::particles::creation::moduleInterfaces
 {
-    /** interface of PredictorFunctor
+    /** interface of CollectiveInitFunctor
      *
-     * functor predicting number of product species particles to spawn for a given source species particle,
-     * depending on passed kernelState and additionalData
-     *
-     * @note may update source particle!
+     * functor handling collective init of a cached data box, for example field caches
      */
-    template<typename T_Number, typename... T_KernelConfigOptions>
-    struct PredictorFunctor
+    template<typename T_Index, typename... T_KernelConfigOptions>
+    struct InitCacheFunctor
     {
-        template<
-            typename T_Worker,
-            typename T_SourceParticle,
-            typename T_KernelState,
-            typename T_Cache,
-            typename T_Index,
-            typename... T_AdditionalData>
-        HDINLINE static T_Number getNumberNewParticles(
-            T_Worker const& worker,
-            T_SourceParticle& sourceParticle,
-            T_KernelState& kernelState,
-            T_Cache const& cache,
-            T_Index const addtionalDataIndex,
-            T_AdditionalData... additionalData);
+        template<typename T_Worker, typename... T_AdditionalData>
+        HDINLINE static auto getCache(
+            T_Worker worker,
+            T_Index const superCellIndex,
+            T_AdditionalData&&... additonalData);
     };
 } // namespace picongpu::particles::creation::moduleInterfaces
