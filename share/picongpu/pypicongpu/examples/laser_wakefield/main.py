@@ -190,7 +190,7 @@ if ADD_CUSTOM_INPUT:
     )
 
     output_configuration.addToCustomInput(
-        {"opnePMD_period": 100, "opnePMD_file": "simData", "opnePMD_extension": "bp"}, "openPMD plugin configuration"
+        {"openPMD_period": 100, "openPMD_file": "simData", "openPMD_extension": "bp"}, "openPMD plugin configuration"
     )
 
     output_configuration.addToCustomInput(
