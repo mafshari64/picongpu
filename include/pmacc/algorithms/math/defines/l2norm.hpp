@@ -27,6 +27,7 @@ namespace pmacc
 {
     namespace math
     {
+        /// definition must be provided by Type
         template<typename Type>
         struct L2norm;
 
