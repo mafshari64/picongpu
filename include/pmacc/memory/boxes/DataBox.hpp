@@ -27,9 +27,13 @@
 
 namespace pmacc
 {
-    template<typename Base>
-    struct DataBox : Base
+    template<typename T_Base>
+    struct DataBox : T_Base
     {
+        using Base = T_Base;
+        using typename Base::RefValueType;
+        using typename Base::ValueType;
+
         DataBox() = default;
 
         HDINLINE DataBox(Base base) : Base{std::move(base)}
