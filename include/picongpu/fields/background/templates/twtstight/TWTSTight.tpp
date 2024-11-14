@@ -323,7 +323,6 @@ namespace picongpu::templates::twtstight
         auto const [tanPhi, cotPhi, sinPhi_2, cosPhi_2, sinPolAngle, cosPolAngle, sin2Phi] = trigonometryShortcuts;
         auto const [floatHelpers, complexHelpers] = defineCommonHelperVariables(minimalCoordinates);
         auto const [x2, tauG2, psi0, w02, beta02, nu, xi, besselI0const] = floatHelpers;
-        auto const [Xm, rhom, Xm2, rhom2, besselJ0const, besselJ1const] = complexHelpers;
 
         complex_T const zeroOrder = (beta0 * tauG)
             / (math::sqrt(float_T(2.0))
