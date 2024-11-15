@@ -96,6 +96,7 @@ namespace picongpu::particles::atomicPhysics::ionizationPotentialDepression::sta
         }
     };
 
+    //! specialization for no atomicPhysics ion species
     template<>
     struct CalculateIPDInput<0u>
     {

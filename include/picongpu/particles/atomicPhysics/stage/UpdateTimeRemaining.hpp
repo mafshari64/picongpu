@@ -66,4 +66,13 @@ namespace picongpu::particles::atomicPhysics::stage
                     timeStepField.getDeviceDataBox());
         }
     };
+
+    //! specialization for no atomic Physics ion specie sin simulation
+    template<>
+    struct UpdateTimeRemaining<0u>
+    {
+        HINLINE void operator()(picongpu::MappingDesc const mappingDesc) const
+        {
+        }
+    };
 } // namespace picongpu::particles::atomicPhysics::stage

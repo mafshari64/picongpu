@@ -102,4 +102,13 @@ namespace picongpu::particles::atomicPhysics::stage
             /// @todo implement photon histogram, Brian Marre, 2023
         }
     };
+
+    //! specialization for no atomicPhysics ion species
+    template<>
+    struct CheckForOverSubscription<0u>
+    {
+        HINLINE void operator()(picongpu::MappingDesc const mappingDesc) const
+        {
+        }
+    };
 } // namespace picongpu::particles::atomicPhysics::stage
