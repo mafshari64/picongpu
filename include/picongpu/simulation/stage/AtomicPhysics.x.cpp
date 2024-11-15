@@ -184,10 +184,15 @@ namespace picongpu::simulation::stage
                 if constexpr(debug::rejectionProbabilityCache::PRINT_TO_CONSOLE)
                 {
                     picongpu::particles::atomicPhysics::stage::DumpSuperCellDataToConsole<
-                        localHelperFields::RejectionProbabilityCacheField<picongpu::MappingDesc>,
-                        localHelperFields::PrintRejectionProbabilityCacheToConsole<true>>{}(
+                        localHelperFields::RejectionProbabilityCacheField_Bin<picongpu::MappingDesc>,
+                        localHelperFields::PrintRejectionProbabilityCacheBinToConsole<true>>{}(
                         mappingDesc,
-                        "RejectionProbabilityCacheField");
+                        "RejectionProbabilityCacheField_Bin");
+                    picongpu::particles::atomicPhysics::stage::DumpSuperCellDataToConsole<
+                        localHelperFields::RejectionProbabilityCacheField_Cell<picongpu::MappingDesc>,
+                        localHelperFields::PrintRejectionProbabilityCacheCellToConsole<true>>{}(
+                        mappingDesc,
+                        "RejectionProbabilityCacheField_Cell");
                 }
             }
 

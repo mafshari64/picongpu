@@ -37,11 +37,11 @@ namespace picongpu::particles::atomicPhysics::kernel
     {
         using VectorIdx = DataSpace<picongpu::simDim>;
 
-        template<typename T_Histogram, typename T_RejectionProbabilityCache>
+        template<typename T_Histogram, typename T_RejectionProbabilityCache_Bin>
         HDINLINE static void ofHistogramBin(
             uint32_t const binIndex,
             T_Histogram const& histogram,
-            T_RejectionProbabilityCache& rejectionProbabilityCache,
+            T_RejectionProbabilityCache_Bin& rejectionProbabilityCacheBin,
             bool& sharedResourcesOverSubscribed)
         {
             float_X const weight0 = histogram.getBinWeight0(binIndex);
@@ -64,16 +64,16 @@ namespace picongpu::particles::atomicPhysics::kernel
                 sharedResourcesOverSubscribed = true;
             }
 
-            rejectionProbabilityCache.(binIndex, rejectionProbability);
+            rejectionProbabilityCacheBin.setBin(binIndex, rejectionProbability);
         }
 
-        template<typename T_EFieldBox, typename T_EFieldEnergyUseCache, typename T_RejectionProbabilityCache>
+        template<typename T_EFieldBox, typename T_EFieldEnergyUseCache, typename T_RejectionProbabilityCache_Cell>
         HDINLINE static void ofCell(
             uint32_t const linearCellIndex,
             VectorIdx const& superCellCellOffset,
             T_EFieldBox const eFieldBox,
             T_EFieldEnergyUseCache& eFieldEnergyUseCache,
-            T_RejectionProbabilityCache& rejectionProbabilityCache,
+            T_RejectionProbabilityCache_Cell& rejectionProbabilityCacheCell,
             bool& sharedResourcesOverSubscribed)
         {
             VectorIdx const localCellIndex
@@ -116,7 +116,7 @@ namespace picongpu::particles::atomicPhysics::kernel
                 sharedResourcesOverSubscribed = true;
             }
 
-            rejectionProbabilityCache.setCell(linearCellIndex, rejectionProbability);
+            rejectionProbabilityCacheCell.setCell(linearCellIndex, rejectionProbability);
         }
     };
 } // namespace picongpu::particles::atomicPhysics::kernel

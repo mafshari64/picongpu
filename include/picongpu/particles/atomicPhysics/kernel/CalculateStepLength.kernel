@@ -22,7 +22,6 @@
 #pragma once
 
 #include "picongpu/defines.hpp"
-#include "picongpu/particles/atomicPhysics/localHelperFields/RejectionProbabilityCache.hpp"
 #include "picongpu/particles/atomicPhysics/param.hpp"
 
 #include <pmacc/lockstep/ForEach.hpp>

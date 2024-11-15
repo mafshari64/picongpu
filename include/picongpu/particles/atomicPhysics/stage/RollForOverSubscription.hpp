@@ -21,7 +21,8 @@
 
 #include "picongpu/particles/atomicPhysics/electronDistribution/LocalHistogramField.hpp"
 #include "picongpu/particles/atomicPhysics/kernel/RollForOverSubscription.kernel"
-#include "picongpu/particles/atomicPhysics/localHelperFields/RejectionProbabilityCacheField.hpp"
+#include "picongpu/particles/atomicPhysics/localHelperFields/RejectionProbabilityCacheField_Bin.hpp"
+#include "picongpu/particles/atomicPhysics/localHelperFields/RejectionProbabilityCacheField_Cell.hpp"
 #include "picongpu/particles/atomicPhysics/localHelperFields/SharedResourcesOverSubscribedField.hpp"
 #include "picongpu/particles/atomicPhysics/localHelperFields/TimeRemainingField.hpp"
 #include "picongpu/particles/param.hpp"
@@ -35,10 +36,14 @@ namespace picongpu::particles::atomicPhysics::stage
     /** @class atomic physics sub-stage for rejection previously accepted transitions
      *      taking from oversubscribed bins
      *
-     * For every macro-ion with an accepted transition, using weight from an over
-     *  subscribed bin, try to reject it's transition once, with the bin's rejection
-     *  probability stored in the superCell local cache.
-     * The RejectionProbabilityCache is filled by the checkForOverSubscription stage.
+     * check for each macro ion with an accepted a transition, whether:
+     *  - the accepted transition is a collisional transition and whether the interaction bin is over subscribed
+     * or
+     *  - the accepted transition is a field based transition and whether the macro ions' cell is over subscribed
+     * If yes roll for rejection of the transition.
+     *
+     * Rejection probability stored for each bin in rejectionProbabilityCacheBin
+     *  and for each cell in rejectionProbabilityCacheCell.
      *
      * @attention assumes that the checkForOverSubscription stage has been called before
      *
@@ -68,10 +73,12 @@ namespace picongpu::particles::atomicPhysics::stage
 
             auto& ions = *dc.get<IonSpecies>(IonSpecies::FrameType::getName());
 
-            using RejectionProbabilityCacheField
-                = localHelperFields::RejectionProbabilityCacheField<picongpu::MappingDesc>;
-            auto& rejectionProbabilityCacheField
-                = *dc.get<RejectionProbabilityCacheField>("RejectionProbabilityCacheField");
+            auto& rejectionProbabilityCacheField_Bin
+                = *dc.get<localHelperFields::RejectionProbabilityCacheField_Bin<picongpu::MappingDesc>>(
+                    "RejectionProbabilityCacheField_Bin");
+            auto& rejectionProbabilityCacheField_Cell
+                = *dc.get<localHelperFields::RejectionProbabilityCacheField_Cell<picongpu::MappingDesc>>(
+                    "RejectionProbabilityCacheField_Cell");
 
             auto& sharedResourcesOverSubscribedField
                 = *dc.get<localHelperFields::SharedResourcesOverSubscribedField<picongpu::MappingDesc>>(
@@ -80,15 +87,15 @@ namespace picongpu::particles::atomicPhysics::stage
             RngFactoryFloat rngFactory = RngFactoryFloat{currentStep};
 
             // macro for call of kernel for every superCell
-            PMACC_LOCKSTEP_KERNEL(picongpu::particles::atomicPhysics::kernel::RollForOverSubscriptionKernel<
-                                      RejectionProbabilityCacheField::ElementType>())
+            PMACC_LOCKSTEP_KERNEL(picongpu::particles::atomicPhysics::kernel::RollForOverSubscriptionKernel())
                 .config(mapper.getGridDim(), ions)(
                     mapper,
                     rngFactory,
                     timeRemainingField.getDeviceDataBox(),
                     sharedResourcesOverSubscribedField.getDeviceDataBox(),
                     ions.getDeviceParticlesBox(),
-                    rejectionProbabilityCacheField.getDeviceDataBox());
+                    rejectionProbabilityCacheField_Bin.getDeviceDataBox(),
+                    rejectionProbabilityCacheField_Cell.getDeviceDataBox());
         }
     };
 } // namespace picongpu::particles::atomicPhysics::stage

@@ -23,7 +23,8 @@
 #include "picongpu/particles/atomicPhysics/ConvertEnum.hpp"
 #include "picongpu/particles/atomicPhysics/KernelIndexation.hpp"
 #include "picongpu/particles/atomicPhysics/kernel/CalculateRejectionProbability.hpp"
-#include "picongpu/particles/atomicPhysics/localHelperFields/RejectionProbabilityCache.hpp"
+#include "picongpu/particles/atomicPhysics/localHelperFields/RejectionProbabilityCache_Bin.hpp"
+#include "picongpu/particles/atomicPhysics/localHelperFields/RejectionProbabilityCache_Cell.hpp"
 
 #include <pmacc/lockstep/ForEach.hpp>
 
@@ -56,9 +57,11 @@ namespace picongpu::particles::atomicPhysics::kernel
          * @param fieldEnergyUseCacheBox deviceDataBox giving access to the field energy use cache for each local
          * superCell
          * @param sharedResourcesOverSubscribedBox deviceDataBox giving access to the local shared resources over
-         *  subscription switch for each local superCell
-         * @param rejectionProbabilityCacheBox deviceDataBox giving access to localRejectionProbabilityCache for
-         *  all local superCells
+         *  subscription flag for each local superCell
+         * @param rejectionProbabilityCacheCellBox deviceDataBox giving access to the rejectionProbabilityCache_Cell
+         *  for all local superCells
+         * @param rejectionProbabilityCacheBinBox deviceDataBox giving access to the rejectionProbabilityCache_Bin
+         *  for all local superCells
          */
         template<
             typename T_Worker,
@@ -68,7 +71,8 @@ namespace picongpu::particles::atomicPhysics::kernel
             typename T_EFieldBox,
             typename T_FieldEnergyUseCacheBox,
             typename T_SharedRessourcesOverSubscribedBox,
-            typename T_RejectionProbabilityCacheDataBox>
+            typename T_RejectionProbabilityCacheBinDataBox,
+            typename T_RejectionProbabilityCacheCellDataBox>
         HDINLINE void operator()(
             T_Worker const& worker,
             T_AreaMapping const areaMapping,
@@ -77,7 +81,8 @@ namespace picongpu::particles::atomicPhysics::kernel
             T_EFieldBox const eFieldBox,
             T_FieldEnergyUseCacheBox const fieldEnergyUseCacheBox,
             T_SharedRessourcesOverSubscribedBox sharedResourcesOverSubscribedBox,
-            T_RejectionProbabilityCacheDataBox rejectionProbabilityCacheBox) const
+            T_RejectionProbabilityCacheBinDataBox rejectionProbabilityCacheBinBox,
+            T_RejectionProbabilityCacheCellDataBox rejectionProbabilityCacheCellBox) const
         {
             auto const superCellIdx = KernelIndexation::getSuperCellIndex(worker, areaMapping);
             auto const superCellFieldIdx
@@ -87,10 +92,12 @@ namespace picongpu::particles::atomicPhysics::kernel
             if(timeRemaining <= 0._X)
                 return;
 
-            particles::atomicPhysics::localHelperFields::RejectionProbabilityCache<
-                T_HistogramDataBox::ValueType::numberBins,
-                T_FieldEnergyUseCache::numberCells>& rejectionProbabilityCache
-                = rejectionProbabilityCacheBox(superCellFieldIdx);
+            particles::atomicPhysics::localHelperFields::RejectionProbabilityCache_Cell<
+                T_FieldEnergyUseCache::numberCells>& rejectionProbabilityCacheCell
+                = rejectionProbabilityCacheCellBox(superCellFieldIdx);
+            particles::atomicPhysics::localHelperFields::RejectionProbabilityCache_Bin<
+                T_HistogramDataBox::ValueType::numberBins>& rejectionProbabilityCacheBin
+                = rejectionProbabilityCacheBinBox(superCellFieldIdx);
 
             bool sharedResourcesOverSubscribed = false;
 
@@ -98,12 +105,12 @@ namespace picongpu::particles::atomicPhysics::kernel
             auto forEachBin
                 = pmacc::lockstep::makeForEach<T_HistogramDataBox::ValueType::numberBins, T_Worker>(worker);
             forEachBin(
-                [&histogram, &rejectionProbabilityCache, &sharedResourcesOverSubscribed](uint32_t const binIndex)
+                [&histogram, &rejectionProbabilityCacheBin, &sharedResourcesOverSubscribed](uint32_t const binIndex)
                 {
                     CalculateRejectionProbability::ofHistogramBin(
                         binIndex,
                         histogram,
-                        rejectionProbabilityCache,
+                        rejectionProbabilityCacheBin,
                         sharedResourcesOverSubscribed);
                 });
 
@@ -114,7 +121,7 @@ namespace picongpu::particles::atomicPhysics::kernel
                 [&superCellCellOffset,
                  &eFieldBox,
                  &eFieldEnergyUseCache,
-                 &rejectionProbabilityCache,
+                 &rejectionProbabilityCacheCell,
                  &sharedResourcesOverSubscribed](uint32_t const linearCellIndex)
                 {
                     CalculateRejectionProbability::ofCell(
@@ -122,7 +129,7 @@ namespace picongpu::particles::atomicPhysics::kernel
                         superCellCellOffset,
                         eFieldBox,
                         eFieldEnergyUseCache,
-                        rejectionProbabilityCache,
+                        rejectionProbabilityCacheCell,
                         sharedResourcesOverSubscribed);
                 });
 
