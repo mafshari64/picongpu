@@ -22,6 +22,7 @@
 #include "picongpu/defines.hpp"
 #include "picongpu/particles/atomicPhysics/ConvertEnum.hpp"
 #include "picongpu/particles/atomicPhysics/KernelIndexation.hpp"
+#include "picongpu/particles/atomicPhysics/kernel/CalculateRejectionProbability.hpp"
 #include "picongpu/particles/atomicPhysics/localHelperFields/RejectionProbabilityCache.hpp"
 
 #include <pmacc/lockstep/ForEach.hpp>
@@ -32,8 +33,8 @@ namespace picongpu::particles::atomicPhysics::kernel
 {
     /** check all bins and cells for overSubscription
      *
-     * checks each (superCell cell)/(local histogram bin) for (deltaWeight > weight0)/(fieldEnergyUse > fieldEnergy),
-     *  if yes mark cell/bin as oversubscribed and store rejection probability in rejection probability cache
+     * checks each (superCell cell)/(local histogram bin) for (fieldEnergyUse > fieldEnergy)/(deltaWeight > weight0),
+     *  if yes mark cell/bin as oversubscribed and stores rejection probability in rejection probability cache
      *
      * @tparam T_Histogram histogram type
      * @tparam T_FieldEnergyUseCache field energy use cache type
@@ -63,7 +64,7 @@ namespace picongpu::particles::atomicPhysics::kernel
             typename T_Worker,
             typename T_AreaMapping,
             typename T_LocalTimeRemainingBox,
-            typename T_LocalHistogramDataBox,
+            typename T_HistogramDataBox,
             typename T_EFieldBox,
             typename T_FieldEnergyUseCacheBox,
             typename T_SharedRessourcesOverSubscribedBox,
@@ -72,7 +73,7 @@ namespace picongpu::particles::atomicPhysics::kernel
             T_Worker const& worker,
             T_AreaMapping const areaMapping,
             T_LocalTimeRemainingBox const timeRemainingBox,
-            T_LocalHistogramDataBox const histogramBox,
+            T_HistogramDataBox const histogramBox,
             T_EFieldBox const eFieldBox,
             T_FieldEnergyUseCacheBox const fieldEnergyUseCacheBox,
             T_SharedRessourcesOverSubscribedBox sharedResourcesOverSubscribedBox,
@@ -87,98 +88,42 @@ namespace picongpu::particles::atomicPhysics::kernel
                 return;
 
             particles::atomicPhysics::localHelperFields::RejectionProbabilityCache<
-                T_Histogram::numberBins,
+                T_HistogramDataBox::ValueType::numberBins,
                 T_FieldEnergyUseCache::numberCells>& rejectionProbabilityCache
                 = rejectionProbabilityCacheBox(superCellFieldIdx);
 
             bool sharedResourcesOverSubscribed = false;
 
-            T_Histogram const& histogram = histogramBox(superCellFieldIdx);
-            auto forEachBin = pmacc::lockstep::makeForEach<T_Histogram::numberBins, T_Worker>(worker);
+            T_HistogramDataBox::ValueType const& histogram = histogramBox(superCellFieldIdx);
+            auto forEachBin
+                = pmacc::lockstep::makeForEach<T_HistogramDataBox::ValueType::numberBins, T_Worker>(worker);
             forEachBin(
-                [&worker, &histogram, &sharedResourcesOverSubscribed, &rejectionProbabilityCache](
-                    uint32_t const binIndex)
+                [&histogram, &rejectionProbabilityCache, &sharedResourcesOverSubscribed](uint32_t const binIndex)
                 {
-                    float_X const weight0 = histogram.getBinWeight0(binIndex);
-                    float_X const deltaWeight = histogram.getBinDeltaWeight(binIndex);
-
-                    float_X rejectionProbability;
-
-                    if(weight0 < deltaWeight)
-                    {
-                        // bin is oversubscribed by suggested changes
-
-                        // calculate rejection probability
-                        rejectionProbability = math::max(
-                            // proportion of weight we want to reject
-                            (deltaWeight - weight0) / deltaWeight,
-                            // but at least one average one macro ion should be rejected
-                            sim.unit.typicalNumParticlesPerMacroParticle() / deltaWeight);
-
-                        // set flag that we found at least one over subscribed resource
-                        sharedResourcesOverSubscribed = true;
-                    }
-                    else
-                        rejectionProbability = -1._X;
-
-                    rejectionProbabilityCache.setBin(binIndex, rejectionProbability);
+                    CalculateRejectionProbability::ofHistogramBin(
+                        binIndex,
+                        histogram,
+                        rejectionProbabilityCache,
+                        sharedResourcesOverSubscribed);
                 });
-
 
             T_FieldEnergyUseCache const& eFieldEnergyUseCache = fieldEnergyUseCacheBox(superCellFieldIdx);
             DataSpace<picongpu::simDim> const superCellCellOffset = superCellIdx * picongpu::SuperCellSize::toRT();
             auto forEachCell = pmacc::lockstep::makeForEach<T_FieldEnergyUseCache::numberCells, T_Worker>(worker);
             forEachCell(
-                [&worker,
-                 &superCellCellOffset,
+                [&superCellCellOffset,
                  &eFieldBox,
                  &eFieldEnergyUseCache,
-                 &sharedResourcesOverSubscribed,
-                 &rejectionProbabilityCache](uint32_t const linearCellIndex)
+                 &rejectionProbabilityCache,
+                 &sharedResourcesOverSubscribed](uint32_t const linearCellIndex)
                 {
-                    DataSpace<picongpu::simDim> const localCellIndex
-                        = pmacc::math::mapToND(picongpu::SuperCellSize::toRT(), static_cast<int>(linearCellIndex));
-                    DataSpace<picongpu::simDim> const cellIndex = localCellIndex + superCellCellOffset;
-
-                    // sim.unit.charge()^2 * sim.unit.time()^2 / (sim.unit.mass() * sim.unit.length()^3)
-                    //  * sim.unit.length()^3
-                    // = sim.unit.charge()^2 * sim.unit.time()^2 / sim.unit.mass()
-                    constexpr float_X eps0HalfTimesCellVolume
-                        = (picongpu::sim.pic.getEps0() / 2._X) * picongpu::sim.pic.getCellSize().productOfComponents();
-
-                    // sim.unit.charge()^2 * sim.unit.time()^2 / sim.unit.mass()
-                    //  * ((sim.unit.mass() * sim.unit.length())/(sim.unit.time()^2 * sim.unit.charge()))^2
-                    // = sim.unit.charge()^2 * sim.unit.time()^2 * sim.unit.mass()^2 * sim.unit.length()^2
-                    //  / (sim.unit.mass() * sim.unit.time()^4 * sim.unit.charge()^2)
-                    // = sim.unit.mass() * sim.unit.length()^2/ (sim.unit.time()^2 * sim.unit.length())
-                    // sim.unit.energy()
-                    float_X const eFieldEnergy = eps0HalfTimesCellVolume * pmacc::math::l2norm2(eFieldBox(cellIndex));
-
-                    // eV * 1 = eV * sim.unit.energy()/sim.unit.energy() = (ev / sim.unit.energy()) * sim.unit.energy()
-                    // sim.unit.energy()
-                    float_X const eFieldEnergyUse
-                        = picongpu::sim.pic.get_eV() * eFieldEnergyUseCache.energyUsed(linearCellIndex);
-
-                    float_X rejectionProbability;
-
-                    if(eFieldEnergyUse > eFieldEnergy)
-                    {
-                        // cell is oversubscribed by suggested changes
-
-                        // calculate rejection probability
-                        rejectionProbability = pmacc::math::max(
-                            // proportion of weight we want to reject
-                            (eFieldEnergyUse - eFieldEnergy) / eFieldEnergyUse,
-                            // but approximately at least one average one macro ion per cell should be rejected
-                            1._X / static_cast<float_X>(sim.getTypicalNumParticlesPerCell()));
-
-                        // set flag that we found at least one over subscribed resource
-                        sharedResourcesOverSubscribed = true;
-                    }
-                    else
-                        rejectionProbability = -1._X;
-
-                    rejectionProbabilityCache.setCell(linearCellIndex, rejectionProbability);
+                    CalculateRejectionProbability::ofCell(
+                        linearCellIndex,
+                        superCellCellOffset,
+                        eFieldBox,
+                        eFieldEnergyUseCache,
+                        rejectionProbabilityCache,
+                        sharedResourcesOverSubscribed);
                 });
 
             uint32_t& flagField = sharedResourcesOverSubscribedBox(superCellFieldIdx);
