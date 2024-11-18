@@ -21,13 +21,13 @@
 
 #include "picongpu/defines.hpp"
 #include "picongpu/particles/atomicPhysics/CheckForInvalidChooseTransitionGroup.hpp"
+#include "picongpu/particles/atomicPhysics/CheckSetOfAtomicDataBoxes.hpp"
 #include "picongpu/particles/atomicPhysics/ConvertEnum.hpp"
+#include "picongpu/particles/atomicPhysics/EFieldCache.hpp"
 #include "picongpu/particles/atomicPhysics/KernelIndexation.hpp"
 #include "picongpu/particles/atomicPhysics/enums/ChooseTransitionGroup.hpp"
 #include "picongpu/particles/atomicPhysics/enums/ProcessClass.hpp"
-#include "picongpu/particles/atomicPhysics/enums/ProcessClassGroup.hpp"
 #include "picongpu/particles/atomicPhysics/enums/TransitionDirection.hpp"
-#include "picongpu/particles/atomicPhysics/enums/TransitionOrderingFor.hpp"
 #include "picongpu/particles/atomicPhysics/rateCalculation/BoundFreeFieldTransitionRates.hpp"
 
 #include <pmacc/dimensions/DataSpace.hpp>
@@ -55,62 +55,14 @@ namespace picongpu::particles::atomicPhysics::kernel
      * The transition corresponding to the interval containing r is the chosen and accepted.
      *
      * @tparam T_ADKLaserPolarization polarization direction to use in the ADK rate calculation
-     * @tparam T_EField type of EField
      * @tparam T_n_max number of levels of atomic states in input
      * @tparam T_IPDModel ionization potential depression model to use
      */
-    template<
-        s_enums::ADKLaserPolarization T_ADKLaserPolarization,
-        typename T_EField,
-        uint8_t T_n_max,
-        typename T_IPDModel>
+    template<s_enums::ADKLaserPolarization T_ADKLaserPolarization, uint8_t T_n_max, typename T_IPDModel>
     struct ChooseTransitionKernel_FieldBoundFree
     {
         using VectorIdx = pmacc::DataSpace<picongpu::simDim>;
 
-    private:
-        //! @attention this is a collective method and implicitly synchronises
-        template<typename BlockDescription, typename T_Worker, typename T_EFieldBox, typename T_EfieldCache>
-        HDINLINE void initEFieldCache(
-            T_Worker const& worker,
-            VectorIdx const& superCellCellOffset,
-            T_EFieldBox const eFieldBox,
-            T_EfieldCache& eFieldCache) const
-        {
-            auto fieldEBlockToCache = eFieldBox.shift(superCellCellOffset);
-
-            pmacc::math::operation::Assign assign;
-            auto collective = makeThreadCollective<BlockDescription>();
-
-            collective(worker, assign, eFieldCache, fieldEBlockToCache);
-            worker.sync();
-        }
-
-        template<
-            typename T_AtomicStateBoundFreeStartIndexBlockDataBox,
-            typename T_AtomicStateBoundFreeNumberTransitionsDataBox,
-            typename T_BoundFreeTransitionDataBox>
-        static constexpr bool checkCorrectAtomicDataBoxesPassed()
-        {
-            PMACC_CASSERT_MSG(
-                number_transition_dataBox_not_bound_free_based,
-                u8(T_AtomicStateBoundFreeNumberTransitionsDataBox::processClassGroup)
-                    == u8(enums::ProcessClassGroup::boundFreeBased));
-            PMACC_CASSERT_MSG(
-                startIndex_dataBox_not_bound_free_based,
-                u8(T_AtomicStateBoundFreeStartIndexBlockDataBox::processClassGroup)
-                    == u8(enums::ProcessClassGroup::boundFreeBased));
-            PMACC_CASSERT_MSG(
-                boundFreeTransitiondataBox_not_bound_free_based,
-                u8(T_BoundFreeTransitionDataBox::processClassGroup) == u8(enums::ProcessClassGroup::boundFreeBased));
-            PMACC_CASSERT_MSG(
-                wrong_transition_ordering_boundFreeTransitionDataBox,
-                u8(T_BoundFreeTransitionDataBox::transitionOrdering)
-                    == u8(s_enums::TransitionOrderingFor<s_enums::TransitionDirection::upward>::ordering));
-            return true;
-        }
-
-    public:
         /** call operator
          *
          * called by ChooseTransition atomic physics sub-stage
@@ -126,7 +78,7 @@ namespace picongpu::particles::atomicPhysics::kernel
          * @param startIndexBox deviceDataBox giving access to the start index of each
          * @param timeRemainingBox deviceDataBox giving access to the local time remaining of all local super
          * cells
-         * @param eFieldBox deviceDataBox giving access to the device local eField Values
+         * @param eFieldBox deviceDataBox giving access to the device local E-Field values
          * @param ionBox deviceDataBox giving access to the ion frames of all local superCells
          * @param ipdInput everything required by T_IPDModel to calculate the IonizationPotentialDepression,
          *  passed by T_IPDModel::callKernelWithIPDInput
@@ -160,14 +112,15 @@ namespace picongpu::particles::atomicPhysics::kernel
             T_IonBox ionBox,
             T_IPDInput const... ipdInput) const
         {
-            PMACC_CASSERT(checkCorrectAtomicDataBoxesPassed<
+            PMACC_CASSERT(CheckSetOfAtomicDataBoxes::areBoundFreeAndDirection<
+                          s_enums::TransitionDirection::upward,
                           T_AtomicStateBoundFreeStartIndexBlockDataBox,
                           T_AtomicStateBoundFreeNumberTransitionsDataBox,
                           T_BoundFreeTransitionDataBox>());
 
             VectorIdx const superCellIdx = KernelIndexation::getSuperCellIndex(worker, areaMapping);
             VectorIdx const superCellFieldIdx
-                = KernelIndexation::getSuperCellFieldIndex(worker, areaMapping, superCellIdx);
+                = KernelIndexation::getSuperCellFieldIndexFromSuperCellIndex(areaMapping, superCellIdx);
 
             auto const timeRemaining = timeRemainingBox(superCellFieldIdx);
             auto forEachLocalIonBoxEntry = pmacc::particles::algorithm::acc::makeForEach(worker, ionBox, superCellIdx);
@@ -175,12 +128,8 @@ namespace picongpu::particles::atomicPhysics::kernel
             if((timeRemaining <= 0._X) || (!forEachLocalIonBoxEntry.hasParticles()))
                 return;
 
-            using SuperCellBlock = pmacc::SuperCellDescription<typename picongpu::SuperCellSize>;
-            VectorIdx const superCellSize = picongpu::SuperCellSize::toRT();
-            /// @note cache is unique for kernel call by id and dataType, and thereby shared between workers
-            auto eFieldCache = CachedBox::create</* Id */ 0u, typename T_EField::ValueType>(worker, SuperCellBlock());
-            VectorIdx const superCellCellOffset = superCellIdx * superCellSize;
-            initEFieldCache<SuperCellBlock>(worker, superCellCellOffset, eFieldBox, eFieldCache);
+            auto eFieldCache = EFieldCache::get<__COUNTER__>(worker, superCellIdx, eFieldBox);
+            worker.sync();
 
             auto rngGeneratorFloat = rngFactoryFloat(worker, superCellFieldIdx);
             auto& rateCache = rateCacheBox(superCellFieldIdx);
@@ -205,9 +154,9 @@ namespace picongpu::particles::atomicPhysics::kernel
                     auto const atomicStateCollectionIndex = ion[atomicStateCollectionIndex_];
 
                     VectorIdx const localCellIndex
-                        = pmacc::math::mapToND(superCellSize, static_cast<int>(ion[localCellIdx_]));
-                    // sim.unit.eField()
-                    float_X const eFieldNormCell = pmacc::math::l2norm(eFieldCache(localCellIndex));
+                        = pmacc::math::mapToND(picongpu::SuperCellSize::toRT(), static_cast<int>(ion[localCellIdx_]));
+                    // unit: unit_eField
+                    float_X eFieldNormCell = pmacc::math::l2norm(eFieldCache(localCellIndex));
 
                     // get possible transitions' collectionIndices
                     uint32_t const numberTransitions
@@ -224,14 +173,15 @@ namespace picongpu::particles::atomicPhysics::kernel
                         uint32_t const transitionCollectionIndex = transitionID + startIndexTransitionBlock;
 
                         // 1/picongpu::sim.unit.time()
-                        float_X const rateTransition = atomicPhysics::rateCalculation::
-                            BoundFreeFieldTransitionRates<T_ADKLaserPolarization>::template rateADKFieldIonization(
-                                eFieldNormCell,
-                                ionizationPotentialDepression,
-                                transitionCollectionIndex,
-                                chargeStateDataDataBox,
-                                atomicStateDataDataBox,
-                                transitionDataBox);
+                        float_X const rateTransition
+                            = atomicPhysics::rateCalculation::BoundFreeFieldTransitionRates<T_ADKLaserPolarization>::
+                                template rateADKFieldIonization<float_X>(
+                                    eFieldNormCell,
+                                    ionizationPotentialDepression,
+                                    transitionCollectionIndex,
+                                    chargeStateDataDataBox,
+                                    atomicStateDataDataBox,
+                                    transitionDataBox);
 
                         cumSum += rateTransition
                             / rateCache.rate(

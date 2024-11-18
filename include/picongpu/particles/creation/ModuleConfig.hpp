@@ -66,7 +66,7 @@ namespace picongpu::particles::creation
         typename T_KernelStateType,
         template<typename... T_KernelConfigOptions>
         typename T_InitKernelStateFunctor,
-        template<typename... T_KernelConfigOptions>
+        template<uint32_t T_id, typename... T_KernelConfigOptions>
         typename T_InitCacheFunctor,
         template<typename... T_KernelConfigOptions>
         typename T_AdditionalDataIndexFunctor,
@@ -100,8 +100,8 @@ namespace picongpu::particles::creation
         template<typename... T_KernelConfigOptions>
         using InitKernelStateFunctor = T_InitKernelStateFunctor<T_KernelConfigOptions...>;
 
-        template<typename... T_KernelConfigOptions>
-        using InitCacheFunctor = T_InitCacheFunctor<T_KernelConfigOptions...>;
+        template<uint32_t T_id, typename... T_KernelConfigOptions>
+        using InitCacheFunctor = T_InitCacheFunctor<T_id, T_KernelConfigOptions...>;
 
         template<typename... T_KernelConfigOptions>
         using WriteOutKernelStateFunctor = T_WriteOutKernelStateFunctor<T_KernelConfigOptions...>;

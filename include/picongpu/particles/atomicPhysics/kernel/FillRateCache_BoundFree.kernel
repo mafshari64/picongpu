@@ -21,7 +21,10 @@
 
 // need unit.param for normalisation and units, memory.param for SuperCellSize and dim.param for simDim
 #include "picongpu/defines.hpp"
+#include "picongpu/particles/atomicPhysics/CheckSetOfAtomicDataBoxes.hpp"
 #include "picongpu/particles/atomicPhysics/ConvertEnum.hpp"
+#include "picongpu/particles/atomicPhysics/KernelIndexation.hpp"
+#include "picongpu/particles/atomicPhysics/MinimumAndMaximumEFieldNormOfSuperCell.hpp"
 #include "picongpu/particles/atomicPhysics/electronDistribution/CachedHistogram.hpp"
 #include "picongpu/particles/atomicPhysics/enums/ADKLaserPolarization.hpp"
 #include "picongpu/particles/atomicPhysics/enums/ProcessClassGroup.hpp"
@@ -62,7 +65,7 @@ namespace picongpu::particles::atomicPhysics::kernel
      *
      * @tparam T_electronicIonization is collisional electronic ionization channel active?
      * @tparam T_fieldIonization is field ionization channel active?
-     * @tparam T_TransitionOrdering ordering of assumed for transition DataBox
+     * @tparam T_TransitionOrdering ordering assumed for transition DataBox
      */
     template<
         typename T_IPDModel,
@@ -75,30 +78,7 @@ namespace picongpu::particles::atomicPhysics::kernel
         s_enums::TransitionOrdering T_TransitionOrdering>
     struct FillRateCacheKernel_BoundFree
     {
-        template<
-            typename T_AtomicStateNumberTransitionsBox,
-            typename T_AtomicStateStartIndexBox,
-            typename T_BoundFreeTransitionDataBox>
-        static constexpr bool correctAtomicDataBoxes()
-        {
-            // check that correct databoxes are given
-            PMACC_CASSERT_MSG(
-                number_transitions_dataBox_not_bound_free_based,
-                u8(T_AtomicStateNumberTransitionsBox::processClassGroup)
-                    == u8(s_enums::ProcessClassGroup::boundFreeBased));
-            PMACC_CASSERT_MSG(
-                startIndex_dataBox_not_bound_free_based,
-                u8(T_AtomicStateStartIndexBox::processClassGroup) == u8(s_enums::ProcessClassGroup::boundFreeBased));
-            PMACC_CASSERT_MSG(
-                transition_dataBox_not_bound_free_based,
-                u8(T_BoundFreeTransitionDataBox::processClassGroup) == u8(s_enums::ProcessClassGroup::boundFreeBased));
-            // check ordering of transition dataBox
-            PMACC_CASSERT_MSG(
-                wrong_ordering_of_DataBox,
-                u8(T_BoundFreeTransitionDataBox::transitionOrdering) == u8(T_TransitionOrdering));
-
-            return true;
-        };
+        using VectorIdx = pmacc::DataSpace<picongpu::simDim>;
 
         template<
             typename T_Worker,
@@ -111,7 +91,7 @@ namespace picongpu::particles::atomicPhysics::kernel
             typename T_BoundFreeTransitionDataBox>
         HDINLINE static void fillWithCollisonalIonization(
             T_Worker const& worker,
-            pmacc::DataSpace<picongpu::simDim> superCellFieldIdx,
+            VectorIdx superCellFieldIdx,
             T_RateCache& rateCache,
             T_LocalElectronHistogramDataBox const electronHistogramDataBox,
             T_ChargeStateDataDataBox const chargeStateDataDataBox,
@@ -201,7 +181,7 @@ namespace picongpu::particles::atomicPhysics::kernel
             typename T_BoundFreeTransitionDataBox>
         HDINLINE static void fillWithFieldIonization(
             T_Worker const& worker,
-            pmacc::DataSpace<picongpu::simDim> superCellIdx,
+            VectorIdx superCellIdx,
             T_RateCache& rateCache,
             T_EFieldDataBox const eFieldBox,
             T_ChargeStateDataDataBox const chargeStateDataDataBox,
@@ -211,58 +191,25 @@ namespace picongpu::particles::atomicPhysics::kernel
             T_BoundFreeTransitionDataBox const boundFreeTransitionDataBox,
             float_X const ionizationPotentialDepression)
         {
-            // sim.unit.eField()
-            PMACC_SMEM(worker, maxEFieldSuperCell, typename T_EFieldDataBox::ValueType::type);
-            // sim.unit.eField()
-            PMACC_SMEM(worker, minEFieldSuperCell, typename T_EFieldDataBox::ValueType::type);
+            // unit: unit_eField
+            PMACC_SMEM(worker, minEFieldNormSuperCell, typename T_EFieldDataBox::ValueType::type);
+            // unit: unit_eField
+            PMACC_SMEM(worker, maxEFieldNormSuperCell, typename T_EFieldDataBox::ValueType::type);
 
-            auto onlyMaster = lockstep::makeMaster(worker);
-            onlyMaster(
-                [&maxEFieldSuperCell, &minEFieldSuperCell]()
-                {
-                    maxEFieldSuperCell = 0._X;
-                    /// needs to be initialized with neutral element of Minimum
-                    /// @warning never increase the result from this variable, may be maximum representable value.
-                    minEFieldSuperCell = std::numeric_limits<float_X>::max();
-                });
-            worker.sync();
-
-            constexpr auto numberCellsInSuperCell
-                = pmacc::math::CT::volume<typename picongpu::SuperCellSize>::type::value;
-            DataSpace<picongpu::simDim> const superCellCellOffset = superCellIdx * picongpu::SuperCellSize::toRT();
-            auto forEachCell = pmacc::lockstep::makeForEach<numberCellsInSuperCell, T_Worker>(worker);
-
-            /// @todo switch to shared memory reduce, Brian Marre, 2024
-            forEachCell(
-                [&worker, &superCellCellOffset, &maxEFieldSuperCell, &minEFieldSuperCell, &eFieldBox](
-                    uint32_t const linearIdx)
-                {
-                    DataSpace<picongpu::simDim> const localCellIndex
-                        = pmacc::math::mapToND(picongpu::SuperCellSize::toRT(), static_cast<int>(linearIdx));
-                    DataSpace<picongpu::simDim> const cellIndex = localCellIndex + superCellCellOffset;
-
-                    auto const eFieldNorm = pmacc::math::l2norm(eFieldBox(cellIndex));
-
-                    alpaka::atomicMax(
-                        worker.getAcc(),
-                        // sim.unit.eField()
-                        &maxEFieldSuperCell,
-                        eFieldNorm);
-
-                    alpaka::atomicMin(
-                        worker.getAcc(),
-                        // sim.unit.eField()
-                        &minEFieldSuperCell,
-                        eFieldNorm);
-                });
+            MinimumAndMaximumEFieldNormOfSuperCell::find(
+                worker,
+                superCellIdx,
+                eFieldBox,
+                minEFieldNormSuperCell,
+                maxEFieldNormSuperCell);
             worker.sync();
 
             // calculate maximum ADK field ionization rate for each atomic state
             auto forEachAtomicState = pmacc::lockstep::makeForEach<T_numberAtomicStates, T_Worker>(worker);
             forEachAtomicState(
                 [&ionizationPotentialDepression,
-                 &maxEFieldSuperCell,
-                 &minEFieldSuperCell,
+                 &minEFieldNormSuperCell,
+                 &maxEFieldNormSuperCell,
                  &rateCache,
                  &numberTransitionsDataBox,
                  &startIndexDataBox,
@@ -278,18 +225,18 @@ namespace picongpu::particles::atomicPhysics::kernel
                         = numberTransitionsDataBox.numberOfTransitionsUp(atomicStateCollectionIndex);
                     uint32_t const offset = startIndexDataBox.startIndexBlockTransitionsUp(atomicStateCollectionIndex);
 
-                    // 1/picongpu::sim.unit.time()
+                    // unit: 1/unit_time
                     float_X sumRateTransitions = 0._X;
                     for(uint32_t transitionID = u32(0u); transitionID < numberTransitionsUp; ++transitionID)
                     {
                         uint32_t const transitionCollectionIndex = offset + transitionID;
 
-                        // 1/picongpu::sim.unit.time()
+                        // unit: 1/unit_time
                         sumRateTransitions
                             += atomicPhysics::rateCalculation::BoundFreeFieldTransitionRates<T_ADKLaserPolarization>::
-                                template maximumRateADKFieldIonization(
-                                    maxEFieldSuperCell,
-                                    minEFieldSuperCell,
+                                template maximumRateADKFieldIonization<float_X>(
+                                    minEFieldNormSuperCell,
+                                    maxEFieldNormSuperCell,
                                     ionizationPotentialDepression,
                                     transitionCollectionIndex,
                                     chargeStateDataDataBox,
@@ -309,18 +256,17 @@ namespace picongpu::particles::atomicPhysics::kernel
          *
          * @param worker object containing the device and block information, passed by PMACC_KERNEL call
          * @param areaMapping mapping of blockIndex to block superCell index
-         * @param timeRemainingBox deviceDataBox giving access to the local time remaining of all local super
-         * cells
-         * @param rateCacheBox deviceDataBox giving access to the local rate cache of
-         *  all local superCells
-         * @param electronHistogramDataBox giving access to the local electron histograms
-         *  of all local superCells
+         * @param timeRemainingBox deviceDataBox giving access to the time remaining of all local superCells
+         * @param rateCacheBox deviceDataBox giving access to the rate cache of all local superCells
+         * @param electronHistogramDataBox deviceDataBox giving access to the electron histograms of all local
+         *  superCells
+         * @param eFieldBox deviceDataBox giving access to the E-Field values of all local cells
          * @param chargeStateDataDataBox deviceDataBox giving access to charge state property data
          * @param atomicStateDataDataBox deviceDataBox giving access to atomic state property data
-         * @param startIndexDataBox deviceDataBox giving access to the start index of each atomic states'
-         *  block of transitions in the up-/down-ward bound-bound transition collection
-         * @param numberTransitionsDataBox deviceDataBox giving access to the number of transitions
-         *   of each atomic state up- and down-ward
+         * @param startIndexDataBox deviceDataBox giving access to the start index of each atomic states' block of
+         *  transitions in the up-/down-ward bound-bound transition collection
+         * @param numberTransitionsDataBox deviceDataBox giving access to the number of transitions of each atomic
+         *  state up- and down-ward
          * @param boundFreeTransitionDataBox deviceDataBox giving access to bound-free transition property data
          * @param ipdInput deviceDataBoxes giving access to ionization potential depression input for each superCell
          *
@@ -359,19 +305,17 @@ namespace picongpu::particles::atomicPhysics::kernel
             // This last is always used:
             T_IPDInput... ipdInput) const
         {
-            PMACC_CASSERT(correctAtomicDataBoxes<
+            PMACC_CASSERT(CheckSetOfAtomicDataBoxes::areBoundFreeAndOrdering<
+                          T_TransitionOrdering,
                           T_AtomicStateNumberTransitionsBox,
                           T_AtomicStateStartIndexBox,
                           T_BoundFreeTransitionDataBox>());
 
-            pmacc::DataSpace<picongpu::simDim> const superCellIdx
-                = areaMapping.getSuperCellIndex(worker.blockDomIdxND());
-            // atomicPhysics superCellFields have no guard, but areMapping includes a guard
-            //  -> must subtract guard to get correct superCellFieldIdx
-            pmacc::DataSpace<picongpu::simDim> const superCellFieldIdx
-                = superCellIdx - areaMapping.getGuardingSuperCells();
+            VectorIdx const superCellIdx = KernelIndexation::getSuperCellIndex(worker, areaMapping);
+            VectorIdx const superCellFieldIdx
+                = KernelIndexation::getSuperCellFieldIndexFromSuperCellIndex(areaMapping, superCellIdx);
 
-            // picongpu::sim.unit.time()
+            // unit: unit_time
             auto const timeRemaining = timeRemainingBox(superCellFieldIdx);
 
             // end kernel if superCell already finished
