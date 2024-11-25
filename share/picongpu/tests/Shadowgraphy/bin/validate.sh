@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # This file is part of PIConGPU.
-# Copyright 2023 PIConGPU contributors
+# Copyright 2023-2024 PIConGPU contributors
 # Authors: Mika Soren Voss, Rene Widera, Hannes Wolf, Klaus Steiniger, Finn-Ole Carstens
 # License: GPLv3+
 #

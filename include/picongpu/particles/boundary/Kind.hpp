@@ -1,4 +1,4 @@
-/* Copyright 2021-2023 Sergei Bastrakov, Lennert Sprenger
+/* Copyright 2021-2024 Sergei Bastrakov, Lennert Sprenger
  *
  * This file is part of PIConGPU.
  *

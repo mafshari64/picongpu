@@ -1,4 +1,4 @@
-/* Copyright 2020-2023 Sergei Bastrakov, Finn-Ole Carstens
+/* Copyright 2020-2024 Sergei Bastrakov, Finn-Ole Carstens
  *
  * This file is part of PIConGPU.
  *

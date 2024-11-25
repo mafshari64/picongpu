@@ -1,4 +1,4 @@
-/* Copyright 2014-2023 Alexander Debus
+/* Copyright 2014-2024 Alexander Debus
  *
  * This file is part of PIConGPU.
  *

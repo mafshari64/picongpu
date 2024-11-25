@@ -1,7 +1,7 @@
 """
 This file is part of PIConGPU.
 
-Copyright 2024 Fabia Dietrich
+Copyright 2024-2024 Fabia Dietrich
 """
 
 import openpmd_api as openpmd

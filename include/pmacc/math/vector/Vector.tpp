@@ -1,4 +1,4 @@
-/* Copyright 2013-2023 Axel Huebl, Heiko Burau, Rene Widera, Benjamin Worpitz,
+/* Copyright 2013-2024 Axel Huebl, Heiko Burau, Rene Widera, Benjamin Worpitz,
  *                     Sergei Bastrakov
  *
  * This file is part of PMacc.

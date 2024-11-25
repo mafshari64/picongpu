@@ -1,4 +1,4 @@
-/* Copyright 2024 Fabia Dietrich
+/* Copyright 2024-2024 Fabia Dietrich
  *
  * This file is part of PIConGPU.
  *

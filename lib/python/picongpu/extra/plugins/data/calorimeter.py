@@ -1,4 +1,4 @@
-# Copyright 2023 Richard Pausch
+# Copyright 2023-2024 Richard Pausch
 #
 # This file is part of PIConGPU.
 #

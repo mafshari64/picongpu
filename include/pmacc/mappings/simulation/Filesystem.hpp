@@ -1,4 +1,4 @@
-/* Copyright 2014-2023 Felix Schmitt
+/* Copyright 2014-2024 Felix Schmitt
  *
  * This file is part of PMacc.
  *

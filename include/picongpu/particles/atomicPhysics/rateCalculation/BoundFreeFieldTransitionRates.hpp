@@ -1,4 +1,4 @@
-/* Copyright 2024 Brian Marre, Marco Garten
+/* Copyright 2024-2024 Brian Marre, Marco Garten
  *
  * This file is part of PIConGPU.
  *

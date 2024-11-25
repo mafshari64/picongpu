@@ -1,4 +1,4 @@
-# Copyright 2013-2023 Rene Widera, Axel Huebl, Tapish Narwal
+# Copyright 2013-2024 Rene Widera, Axel Huebl, Tapish Narwal
 #
 # This file is part of PMacc.
 #

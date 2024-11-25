@@ -1,4 +1,4 @@
-/* Copyright 2015-2023 Rene Widera, Pawel Ordyna
+/* Copyright 2015-2024 Rene Widera, Pawel Ordyna
  *
  * This file is part of PIConGPU.
  *

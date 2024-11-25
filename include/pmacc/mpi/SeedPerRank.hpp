@@ -1,4 +1,4 @@
-/* Copyright 2014-2023 Axel Huebl, Alexander Grund
+/* Copyright 2014-2024 Axel Huebl, Alexander Grund
  *
  * This file is part of PMacc.
  *

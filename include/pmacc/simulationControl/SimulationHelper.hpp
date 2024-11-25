@@ -1,4 +1,4 @@
-/* Copyright 2013-2023 Axel Huebl, Felix Schmitt, Rene Widera, Alexander Debus,
+/* Copyright 2013-2024 Axel Huebl, Felix Schmitt, Rene Widera, Alexander Debus,
  *                     Benjamin Worpitz, Alexander Grund, Sergei Bastrakov, Pawel Ordyna
  *
  * This file is part of PMacc.

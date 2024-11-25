@@ -1,4 +1,4 @@
-/* Copyright 2013-2023 Heiko Burau, Rene Widera, Richard Pausch, Axel Huebl
+/* Copyright 2013-2024 Heiko Burau, Rene Widera, Richard Pausch, Axel Huebl
  *
  * This file is part of PIConGPU.
  *

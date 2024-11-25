@@ -1,4 +1,4 @@
-/* Copyright 2015-2023 Marco Garten, Rene Widera, Brian Marre
+/* Copyright 2015-2024 Marco Garten, Rene Widera, Brian Marre
  *
  * This file is part of PIConGPU.
  *

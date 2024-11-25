@@ -1,4 +1,4 @@
-/* Copyright 2022-2023 Brian Marre, Rene Widera
+/* Copyright 2022-2024 Brian Marre, Rene Widera
  *
  * This file is part of PIConGPU.
  *
