@@ -411,8 +411,8 @@ class PrepRoutines:
             return None
 
         else:
-            # original field integral (needed for field ratio calculation)
-            int_orig = np.sum(np.abs(self.Ew))
+            # original field intensity integral (needed for energy ratio calculation)
+            int_orig = np.sum(np.abs(self.Ew) ** 2)
 
             # propagation FF to MF
             X, Y, W = np.meshgrid(self.x, self.y, self.w)
@@ -439,8 +439,10 @@ class PrepRoutines:
             self.is_masked = True
             print("Aperture of radius %.2f mm at distance %.2e mm has been applied." % (R, d))
 
-            # we need the ratio of the masked far field data to the original one to calculate the correct beam energy later
-            self.field_ratio = np.sum(np.abs(self.Ew)) / int_orig
+            # we need the integrated intensity ratio of the masked far field data to the original one to account in for
+            # the energy loss due to the masking process
+            self.field_ratio = np.sum(np.abs(self.Ew) ** 2) / int_orig
+            print("Pulse energy reduction to %.3f" % (self.field_ratio))
 
     def measure_ad_in_nf(self):
         """
@@ -814,7 +816,7 @@ class PrepRoutines:
         W = dV * 8.854e-12 * np.sum(E_save**2)
         # correct the value if working with an applied aperture
         if self.is_masked:
-            energy *= self.field_ratio**2
+            energy *= self.field_ratio
             print("Masked pulse energy: %.3f J" % (energy))
         # scaling to actual beam energy
         amp_fac = np.sqrt(energy / W)
