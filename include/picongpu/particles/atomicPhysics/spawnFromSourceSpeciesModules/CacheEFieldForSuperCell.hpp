@@ -48,13 +48,13 @@ namespace picongpu::particles::atomicPhysics::spawnFromSourceSpeciesModules
             typename... T_IPDInputBoxes>
         HDINLINE static auto getCache(
             T_Worker const& worker,
-            pmacc::DataSpace<picongpu::simDim> const superCellIndex,
+            [[maybe_unused]] pmacc::DataSpace<picongpu::simDim> const superCellIndex,
             T_LocalTimeRemainingBox const,
             T_FoundUnboundIonBox const,
             T_ChargeStateDataBox const,
             T_AtomicStateDataBox const,
             T_IPDIonizationStateDataBox const,
-            T_EFieldDataBox const eFieldBox,
+            [[maybe_unused]] T_EFieldDataBox const eFieldBox,
             T_IPDInputBoxes const...)
         {
             if constexpr(T_fieldIonizationActive::value)
