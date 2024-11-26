@@ -1,4 +1,4 @@
-/* Copyright 2023 Brian Marre, Rene Widera
+/* Copyright 2023-2024 Brian Marre, Rene Widera
  *
  * This file is part of PMacc.
  *

@@ -1,4 +1,4 @@
-/* Copyright 2024 Tapish Narwal
+/* Copyright 2024-2024 Tapish Narwal
  *
  * This file is part of PIConGPU.
  *

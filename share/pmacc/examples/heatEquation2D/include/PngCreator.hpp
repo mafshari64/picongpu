@@ -1,4 +1,4 @@
-/* Copyright 2013-2023 Heiko Burau, Rene Widera, Tapish Narwal
+/* Copyright 2013-2024 Heiko Burau, Rene Widera, Tapish Narwal
  *
  * This file is part of PMacc.
  *

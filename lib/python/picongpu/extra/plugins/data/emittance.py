@@ -1,7 +1,7 @@
 """
 This file is part of PIConGPU.
 
-Copyright 2017-2023 PIConGPU contributors
+Copyright 2017-2024 PIConGPU contributors
 Authors: Sophie Rudat, Axel Huebl
 License: GPLv3+
 """

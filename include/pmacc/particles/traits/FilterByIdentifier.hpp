@@ -1,4 +1,4 @@
-/* Copyright 2015-2023 Heiko Burau, Rene Widera
+/* Copyright 2015-2024 Heiko Burau, Rene Widera
  *
  * This file is part of PMacc.
  *

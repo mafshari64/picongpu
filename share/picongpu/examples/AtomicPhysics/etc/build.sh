@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Copyright 2024 Brian Marre
+# Copyright 2024-2024 Brian Marre
 #
 # This file is part of PIConGPU.
 #

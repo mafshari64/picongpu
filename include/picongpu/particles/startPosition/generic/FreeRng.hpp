@@ -1,4 +1,4 @@
-/* Copyright 2015-2023 Rene Widera, Alexander Grund
+/* Copyright 2015-2024 Rene Widera, Alexander Grund
  *
  * This file is part of PIConGPU.
  *

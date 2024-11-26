@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Copyright 2024 Julian J. Lenz
+# Copyright 2024-2024 Julian J. Lenz
 #
 # License: GPLv3+
 #

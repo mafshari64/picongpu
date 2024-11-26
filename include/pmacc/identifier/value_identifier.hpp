@@ -1,4 +1,4 @@
-/* Copyright 2013-2023 Rene Widera, Pawel Ordyna
+/* Copyright 2013-2024 Rene Widera, Pawel Ordyna
  *
  * This file is part of PMacc.
  *
