@@ -40,10 +40,11 @@ namespace picongpu::particles::atomicPhysics::kernel
      *  - the accepted transition is a collisional transition and whether the interaction bin is over subscribed
      * or
      *  - the accepted transition is a field based transition and whether the macro ions' cell is over subscribed
+     *
      * If yes roll for rejection of the transition.
      *
-     * Rejection probability stored for each bin in rejectionProbabilityCache_Bin
-     *  and for each cell in rejectionProbabilityCache_Cell.
+     * Rejection probability stored for each bin in rejectionProbabilityCache_Bin and for each cell in
+     *   rejectionProbabilityCache_Cell.
      */
     struct RollForOverSubscriptionKernel
     {

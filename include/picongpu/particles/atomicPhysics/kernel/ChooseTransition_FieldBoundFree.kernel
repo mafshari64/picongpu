@@ -172,7 +172,7 @@ namespace picongpu::particles::atomicPhysics::kernel
                     {
                         uint32_t const transitionCollectionIndex = transitionID + startIndexTransitionBlock;
 
-                        // 1/picongpu::sim.unit.time()
+                        // unit: 1/unit_time
                         float_X const rateTransition
                             = atomicPhysics::rateCalculation::BoundFreeFieldTransitionRates<T_ADKLaserPolarization>::
                                 template rateADKFieldIonization<float_X>(

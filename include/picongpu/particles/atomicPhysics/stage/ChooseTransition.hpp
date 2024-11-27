@@ -17,7 +17,7 @@
  * If not, see <http://www.gnu.org/licenses/>.
  */
 
-//! @file deduceTransitionCollectionIndex sub-stage of atomicPhysics
+//! @file chooseTransition sub-stage of atomicPhysics
 
 #pragma once
 

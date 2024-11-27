@@ -50,7 +50,7 @@ namespace picongpu::particles::atomicPhysics
             T_Worker const& worker,
             T_AreaMapping const areaMapping)
         {
-            // atomicPhysics superCellFields have no guard, but areMapping includes a guard
+            // atomicPhysics superCellFields have no guard, but areaMapping includes a guard
             //  -> must subtract guard to get correct superCellFieldIdx
             return getSuperCellIndex(worker, areaMapping) - areaMapping.getGuardingSuperCells();
         }
