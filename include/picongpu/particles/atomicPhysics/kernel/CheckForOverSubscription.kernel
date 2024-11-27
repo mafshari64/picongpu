@@ -37,12 +37,10 @@ namespace picongpu::particles::atomicPhysics::kernel
      * checks each (superCell cell)/(local histogram bin) for (fieldEnergyUse > fieldEnergy)/(deltaWeight > weight0),
      *  if yes mark cell/bin as oversubscribed and stores rejection probability in rejection probability cache
      *
-     * @tparam T_Histogram histogram type
-     * @tparam T_FieldEnergyUseCache field energy use cache type
      * @tparam T_numberAtomicPhysicsIonSpecies specialization template parameter used to prevent compilation of all
      *  atomicPhysics kernels if no atomic physics species is present.
      */
-    template<typename T_Histogram, typename T_FieldEnergyUseCache, uint32_t T_numberAtomicPhysicsIonSpecies>
+    template<uint32_t T_numberAtomicPhysicsIonSpecies>
     struct CheckForOverSubscriptionKernel
     {
         /** call operator
@@ -92,18 +90,20 @@ namespace picongpu::particles::atomicPhysics::kernel
             if(timeRemaining <= 0._X)
                 return;
 
+            using Histogram = typename T_HistogramDataBox::ValueType;
+            using FieldEnergyUseCache = typename T_FieldEnergyUseCacheBox::ValueType;
+
             particles::atomicPhysics::localHelperFields::RejectionProbabilityCache_Cell<
-                T_FieldEnergyUseCache::numberCells>& rejectionProbabilityCacheCell
+                FieldEnergyUseCache::numberCells>& rejectionProbabilityCacheCell
                 = rejectionProbabilityCacheCellBox(superCellFieldIdx);
-            particles::atomicPhysics::localHelperFields::RejectionProbabilityCache_Bin<
-                T_HistogramDataBox::ValueType::numberBins>& rejectionProbabilityCacheBin
+            particles::atomicPhysics::localHelperFields::RejectionProbabilityCache_Bin<Histogram::numberBins>&
+                rejectionProbabilityCacheBin
                 = rejectionProbabilityCacheBinBox(superCellFieldIdx);
 
             bool sharedResourcesOverSubscribed = false;
 
-            T_HistogramDataBox::ValueType const& histogram = histogramBox(superCellFieldIdx);
-            auto forEachBin
-                = pmacc::lockstep::makeForEach<T_HistogramDataBox::ValueType::numberBins, T_Worker>(worker);
+            Histogram const& histogram = histogramBox(superCellFieldIdx);
+            auto forEachBin = pmacc::lockstep::makeForEach<Histogram::numberBins, T_Worker>(worker);
             forEachBin(
                 [&histogram, &rejectionProbabilityCacheBin, &sharedResourcesOverSubscribed](uint32_t const binIndex)
                 {
@@ -114,9 +114,9 @@ namespace picongpu::particles::atomicPhysics::kernel
                         sharedResourcesOverSubscribed);
                 });
 
-            T_FieldEnergyUseCache const& eFieldEnergyUseCache = fieldEnergyUseCacheBox(superCellFieldIdx);
+            FieldEnergyUseCache const& eFieldEnergyUseCache = fieldEnergyUseCacheBox(superCellFieldIdx);
             DataSpace<picongpu::simDim> const superCellCellOffset = superCellIdx * picongpu::SuperCellSize::toRT();
-            auto forEachCell = pmacc::lockstep::makeForEach<T_FieldEnergyUseCache::numberCells, T_Worker>(worker);
+            auto forEachCell = pmacc::lockstep::makeForEach<FieldEnergyUseCache::numberCells, T_Worker>(worker);
             forEachCell(
                 [&superCellCellOffset,
                  &eFieldBox,

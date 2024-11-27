@@ -82,7 +82,7 @@ namespace picongpu::particles::atomicPhysics::localHelperFields
     {
         using Extent = picongpu::SuperCellSize;
         using StorageType = float_X;
-        using ElementType = FieldEnergyUseCache<Extent, StorageType>;
+        using ValueType = FieldEnergyUseCache<Extent, StorageType>;
 
         FieldEnergyUseCacheField(T_MappingDescription const& mappingDesc)
             : SuperCellField<FieldEnergyUseCache<Extent, StorageType>, T_MappingDescription, false /*no guards*/>(

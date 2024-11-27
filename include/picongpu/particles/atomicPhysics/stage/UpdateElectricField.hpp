@@ -66,10 +66,9 @@ namespace picongpu::particles::atomicPhysics::stage
             auto& fieldEnergyUseCacheField = *dc.get<FieldEnergyUseCacheField>("FieldEnergyUseCacheField");
 
             // macro for call of kernel for every superCell, see pull request #4321
-            PMACC_LOCKSTEP_KERNEL(picongpu::particles::atomicPhysics::kernel::UpdateElectricFieldKernel<
-                                      FieldEnergyUseCacheField::ElementType,
-                                      T_numberAtomicPhysicsIonSpecies>())
-                .template config<FieldEnergyUseCacheField::ElementType::numberCells>(mapper.getGridDim())(
+            PMACC_LOCKSTEP_KERNEL(
+                particles::atomicPhysics::kernel::UpdateElectricFieldKernel<T_numberAtomicPhysicsIonSpecies>())
+                .template config<FieldEnergyUseCacheField::ValueType::numberCells>(mapper.getGridDim())(
                     mapper,
                     timeRemainingField.getDeviceDataBox(),
                     eField.getDeviceDataBox(),

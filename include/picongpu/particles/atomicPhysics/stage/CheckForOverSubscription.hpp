@@ -86,8 +86,6 @@ namespace picongpu::particles::atomicPhysics::stage
 
             // macro for call of kernel for every superCell, see pull request #4321
             PMACC_LOCKSTEP_KERNEL(picongpu::particles::atomicPhysics::kernel::CheckForOverSubscriptionKernel<
-                                      picongpu::atomicPhysics::ElectronHistogram,
-                                      FieldEnergyUseCacheField::ElementType,
                                       T_numberAtomicPhysicsIonSpecies>())
                 .template config<picongpu::atomicPhysics::ElectronHistogram::numberBins>(mapper.getGridDim())(
                     mapper,
@@ -107,7 +105,7 @@ namespace picongpu::particles::atomicPhysics::stage
     template<>
     struct CheckForOverSubscription<0u>
     {
-        HINLINE void operator()(picongpu::MappingDesc const mappingDesc) const
+        HINLINE void operator()([[maybe_unused]] picongpu::MappingDesc const mappingDesc) const
         {
         }
     };

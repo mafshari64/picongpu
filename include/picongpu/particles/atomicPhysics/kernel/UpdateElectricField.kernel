@@ -30,11 +30,10 @@ namespace picongpu::particles::atomicPhysics::kernel
 {
     /** update electric field due to field ionization energy use
      *
-     * @tparam T_FieldEnergyUseCache FieldEnergyCache type
      * @tparam T_numberAtomicPhysicsIonSpecies specialization template parameter used to prevent compilation of all
      *  atomicPhysics kernels if no atomic physics species is present.
      */
-    template<typename T_FieldEnergyUseCache, uint32_t T_numberAtomicPhysicsIonSpecies>
+    template<uint32_t T_numberAtomicPhysicsIonSpecies>
     struct UpdateElectricFieldKernel
     {
         /** call operator
@@ -70,10 +69,11 @@ namespace picongpu::particles::atomicPhysics::kernel
             if(timeRemaining <= 0._X)
                 return;
 
-            T_FieldEnergyUseCache const& eFieldEnergyUseCache = fieldEnergyUseCacheBox(superCellFieldIdx);
+            using FieldEnergyUseCache = typename T_FieldEnergyUseCacheBox::ValueType;
+            FieldEnergyUseCache const& eFieldEnergyUseCache = fieldEnergyUseCacheBox(superCellFieldIdx);
             DataSpace<picongpu::simDim> const superCellCellOffset = superCellIdx * picongpu::SuperCellSize::toRT();
 
-            auto forEachCell = pmacc::lockstep::makeForEach<T_FieldEnergyUseCache::numberCells, T_Worker>(worker);
+            auto forEachCell = pmacc::lockstep::makeForEach<FieldEnergyUseCache::numberCells, T_Worker>(worker);
             forEachCell(
                 [&worker, &superCellCellOffset, &eFieldBox, &eFieldEnergyUseCache](uint32_t const linearCellIndex)
                 {
