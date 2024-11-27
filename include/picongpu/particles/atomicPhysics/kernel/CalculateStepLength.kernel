@@ -91,10 +91,10 @@ namespace picongpu::particles::atomicPhysics::kernel
 
                     // 1/sim.unit.time()
                     float_X lossRateState = 0._X;
-                    if(rateCacheLossRate == 0._X)
+                    if((rateCacheLossRate <= 0._X))
                     {
-                        // no loss state, for example completely ionized state, set to neutral element
-                        // 1/sim.unit.time()
+                        /* no loss state, for example completely ionized state, set to neutral element
+                         * unit: 1/unit_time() */
                         lossRateState = picongpu::atomicPhysics::RateSolverParam::timeStepAlpha / sim.pic.getDt();
                     }
                     else
@@ -112,13 +112,16 @@ namespace picongpu::particles::atomicPhysics::kernel
                             lossRateState = picongpu::atomicPhysics::RateSolverParam::timeStepAlpha / sim.pic.getDt();
                         }
 
+                    // all state with field ionization loss rates above the limit have already been processed
+
                     // 1/(1/sim.unit.time()) = sim.unit.time()
                     float_X const speciesStateLimitTimeStep = 1._X / (lossRateState);
 
-                    // sim.unit.time()
+                    // unit: unit_time
                     alpaka::atomicMin(
                         worker.getAcc(),
-                        &timeStep, // sim.unit.time()
+                        // unit: unit_time
+                        &timeStep,
                         speciesStateLimitTimeStep * picongpu::atomicPhysics::RateSolverParam::timeStepAlpha,
                         ::alpaka::hierarchy::Threads{});
                 });

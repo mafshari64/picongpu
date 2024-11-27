@@ -140,7 +140,15 @@ namespace picongpu::atomicPhysics::debug
         constexpr bool CHECK_FOR_INVALID_TRANSITION_TYPE = false;
         //! @attention performance relevant
         constexpr bool CHECK_FOR_OVERFLOWS_IN_ACCUMULATON = false;
+        //! @attention performance relevant
+        constexpr bool CHECK_FOR_INFINITE_FIELD_IONIZATION_RATES = false;
     } // namespace kernel::chooseTransition
+
+    namespace kernel::chooseInstantTransition
+    {
+        //! @attention performance relevant
+        constexpr bool CHECK_FOR_INFINITE_FIELD_IONIZATION_RATES = false;
+    } // namespace kernel::chooseInstantTransition
 
     namespace kernel::recordSuggestedChanges
     {

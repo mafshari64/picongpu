@@ -45,16 +45,25 @@ namespace picongpu::atomicPhysics
         MaxEnergyParam>;
     //}
 
-    // atomicPhysics rate solver settings
-
+    //! atomicPhysics rate solver settings
     struct RateSolverParam
     {
-        //      atomicPhysics timeStepLength sub-stepping of numerical limit
+        /** atomicPhysics factor between actual timeStepLength in atomicPhysics sub-stepping of numerical limit
+         *
+         * @attention must be <= 1, otherwise solver is numerical unstable
+         */
         static constexpr float_X timeStepAlpha = 0.1_X;
 
-        //      which probability approximation to use for the acceptance step
-        using ProbabilityApproximationFunctor
-            = picongpu::particles::atomicPhysics::ExponentialApproximationProbability;
+        /** maximum number of atomicPhysics sub-steps per PIC time step
+         *
+         * all rates above timeStepAlpha / maximumNumberSubStepsPerPICTimeStep will be solved in
+         *  rate fix point(equilibirium) approximation only.
+         *
+         * @attention This limit is currently only enforced for field ionization transitions! If the number of
+         * sub-steps required by collisional processes is higher than the limit set AtomicPhysics will perform more
+         * subs-steps than set here.
+         */
+        static constexpr uint32_t maximumNumberSubStepsPerPICTimeStep = 200u;
     };
 
     /** atomicConfigNumber definition for argon ions

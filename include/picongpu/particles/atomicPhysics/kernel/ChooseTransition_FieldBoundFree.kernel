@@ -183,6 +183,12 @@ namespace picongpu::particles::atomicPhysics::kernel
                                     atomicStateDataDataBox,
                                     transitionDataBox);
 
+                        if constexpr(picongpu::atomicPhysics::debug::kernel::chooseTransition::
+                                         CHECK_FOR_INFINITE_FIELD_IONIZATION_RATES)
+                            if(rateTransition < 0._X)
+                                printf("atomicPhysics ERROR: encountered infinite transition rate in non instant "
+                                       "transition ion");
+
                         cumSum += rateTransition
                             / rateCache.rate(
                                 u32(s_enums::ChooseTransitionGroup::fieldBoundFreeUpward),
