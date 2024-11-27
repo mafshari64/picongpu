@@ -35,7 +35,10 @@
 
 namespace picongpu::particles::atomicPhysics::stage
 {
-    /** atomicPhysics sub-stage recording deltaEnergy usage by all transitions
+    /** atomicPhysics sub-stage updating atomic state of ions and recording electron histogram energy usage of
+     *  transitions
+     *
+     * @attention assumes that all ions accepted a transition, no check for acceptance outside of a debug compile.
      *
      * @tparam T_IonSpecies ion species type
      */
@@ -75,11 +78,8 @@ namespace picongpu::particles::atomicPhysics::stage
 
             if constexpr(AtomicDataType::switchElectronicExcitation)
             {
-                using RecordChanges_electronicExcitation
-                    = picongpu::particles::atomicPhysics ::kernel::RecordChangesKernel<
-                        s_enums::ProcessClass::electronicExcitation,
-                        picongpu::atomicPhysics::ElectronHistogram,
-                        IPDModel>;
+                using RecordChanges_electronicExcitation = picongpu::particles::atomicPhysics ::kernel::
+                    RecordChangesKernel<s_enums::ProcessClass::electronicExcitation, IPDModel>;
 
                 PMACC_LOCKSTEP_KERNEL(RecordChanges_electronicExcitation())
                     .config(mapper.getGridDim(), ions)(
@@ -95,11 +95,8 @@ namespace picongpu::particles::atomicPhysics::stage
 
             if constexpr(AtomicDataType::switchElectronicDeexcitation)
             {
-                using RecordChanges_electronicDeexcitation
-                    = picongpu::particles::atomicPhysics::kernel::RecordChangesKernel<
-                        s_enums::ProcessClass::electronicDeexcitation,
-                        picongpu::atomicPhysics::ElectronHistogram,
-                        IPDModel>;
+                using RecordChanges_electronicDeexcitation = picongpu::particles::atomicPhysics::kernel::
+                    RecordChangesKernel<s_enums::ProcessClass::electronicDeexcitation, IPDModel>;
 
                 PMACC_LOCKSTEP_KERNEL(RecordChanges_electronicDeexcitation())
                     .config(mapper.getGridDim(), ions)(
@@ -115,11 +112,8 @@ namespace picongpu::particles::atomicPhysics::stage
 
             if constexpr(AtomicDataType::switchSpontaneousDeexcitation)
             {
-                using RecordChanges_spontaneousDeexcitation
-                    = picongpu::particles::atomicPhysics::kernel::RecordChangesKernel<
-                        s_enums::ProcessClass::spontaneousDeexcitation,
-                        picongpu::atomicPhysics::ElectronHistogram,
-                        IPDModel>;
+                using RecordChanges_spontaneousDeexcitation = picongpu::particles::atomicPhysics::kernel::
+                    RecordChangesKernel<s_enums::ProcessClass::spontaneousDeexcitation, IPDModel>;
 
                 PMACC_LOCKSTEP_KERNEL(RecordChanges_spontaneousDeexcitation())
                     .config(mapper.getGridDim(), ions)(
@@ -135,11 +129,8 @@ namespace picongpu::particles::atomicPhysics::stage
 
             if constexpr(AtomicDataType::switchElectronicIonization)
             {
-                using RecordChanges_electronicIonization
-                    = picongpu::particles::atomicPhysics::kernel::RecordChangesKernel<
-                        s_enums::ProcessClass::electronicIonization,
-                        picongpu::atomicPhysics::ElectronHistogram,
-                        IPDModel>;
+                using RecordChanges_electronicIonization = picongpu::particles::atomicPhysics::kernel::
+                    RecordChangesKernel<s_enums::ProcessClass::electronicIonization, IPDModel>;
 
                 IPDModel::template callKernelWithIPDInput<
                     RecordChanges_electronicIonization,
@@ -157,10 +148,8 @@ namespace picongpu::particles::atomicPhysics::stage
 
             if constexpr(AtomicDataType::switchFieldIonization)
             {
-                using RecordChanges_fieldIonization = picongpu::particles::atomicPhysics::kernel::RecordChangesKernel<
-                    s_enums::ProcessClass::fieldIonization,
-                    picongpu::atomicPhysics::ElectronHistogram,
-                    IPDModel>;
+                using RecordChanges_fieldIonization = picongpu::particles::atomicPhysics::kernel::
+                    RecordChangesKernel<s_enums::ProcessClass::fieldIonization, IPDModel>;
 
                 IPDModel::template callKernelWithIPDInput<
                     RecordChanges_fieldIonization,
@@ -178,11 +167,8 @@ namespace picongpu::particles::atomicPhysics::stage
 
             if constexpr(AtomicDataType::switchAutonomousIonization)
             {
-                using RecordChanges_autonomousIonization
-                    = picongpu::particles::atomicPhysics::kernel::RecordChangesKernel<
-                        s_enums::ProcessClass::autonomousIonization,
-                        picongpu::atomicPhysics::ElectronHistogram,
-                        IPDModel>;
+                using RecordChanges_autonomousIonization = picongpu::particles::atomicPhysics::kernel::
+                    RecordChangesKernel<s_enums::ProcessClass::autonomousIonization, IPDModel>;
 
                 IPDModel::template callKernelWithIPDInput<
                     RecordChanges_autonomousIonization,
