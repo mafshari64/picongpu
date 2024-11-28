@@ -23,8 +23,6 @@
 
 #pragma once
 
-#include "picongpu/particles/atomicPhysics/ExponentialApproximationProbability.hpp"
-#include "picongpu/particles/atomicPhysics/LinearApproximationProbability.hpp"
 #include "picongpu/particles/atomicPhysics/atomicData/AtomicData.def"
 #include "picongpu/particles/atomicPhysics/electronDistribution/LogSpaceHistogram.hpp"
 #include "picongpu/particles/atomicPhysics/enums/ADKLaserPolarization.hpp"
