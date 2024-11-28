@@ -151,7 +151,7 @@ namespace picongpu::particles::atomicPhysics::stage
             }
 
             //    upward bound-free transition rates, both collisional and field
-            if constexpr(AtomicDataType::switchElectronicIonization)
+            if constexpr(AtomicDataType::switchElectronicIonization || AtomicDataType::switchFieldIonization)
             {
                 auto& eField = *dc.get<FieldE>(FieldE::getName());
 
