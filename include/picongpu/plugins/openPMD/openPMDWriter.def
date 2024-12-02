@@ -92,7 +92,7 @@ namespace picongpu
 
             MappingDesc* cellDescription = nullptr;
 
-            ::openPMD::Access writeMode = ::openPMD::Access::CREATE;
+            ::openPMD::Access writeAccess = ::openPMD::Access::CREATE;
 
             std::vector<char> fieldBuffer; /* temp. buffer for fields */
 

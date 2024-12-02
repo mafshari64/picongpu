@@ -263,8 +263,8 @@ make sure that environment variable OPENPMD_BP_BACKEND is not set to ADIOS1.
                    "Particle data will be written in chunks of the given size. unit: MiB",
                    "10240"};
 
-            plugins::multi::Option<std::string> writeMode
-                = {"writeMode", "openPMD Access mode for creating output: [create|append]", "create"};
+            plugins::multi::Option<std::string> writeAccess
+                = {"writeAccess", "openPMD Access mode for creating output: [create|append]", "create"};
 
             /*
              * The openPMD plugin is used as a normal I/O plugin as well as for
@@ -357,7 +357,7 @@ make sure that environment variable OPENPMD_BP_BACKEND is not set to ADIOS1.
                  &PluginParameters::jsonRestartParams,
                  ApplyParameter::OnlyInCheckpoint},
                 {&particleIOChunkSize, "particleIOChunkSize", &PluginParameters::particleIOChunkSizeString},
-                {&writeMode, "write_mode", &PluginParameters::writeModeString}};
+                {&writeAccess, "write_mode", &PluginParameters::writeAccessString}};
 
             std::vector<toml::TomlParameter> tomlParameters()
             {
@@ -668,23 +668,23 @@ make sure that environment variable OPENPMD_BP_BACKEND is not set to ADIOS1.
             }
 
             std::transform(
-                writeModeString.begin(),
-                writeModeString.end(),
-                writeModeString.begin(),
+                writeAccessString.begin(),
+                writeAccessString.end(),
+                writeAccessString.begin(),
                 [](unsigned char c) { return std::tolower(c); });
-            if(writeModeString == "create")
+            if(writeAccessString == "create")
             {
-                writeMode = ::openPMD::Access::CREATE;
+                writeAccess = ::openPMD::Access::CREATE;
             }
-            else if(writeModeString == "append")
+            else if(writeAccessString == "append")
             {
-                writeMode = ::openPMD::Access::APPEND;
+                writeAccess = ::openPMD::Access::APPEND;
             }
             else
             {
                 // Better to crash here instead of doing wrong things to user data
                 throw std::runtime_error(
-                    "Wrong write mode specified: '" + writeModeString + "'. Pick either [create|append].");
+                    "Wrong write access mode specified: '" + writeAccessString + "'. Pick either [create|append].");
             }
 
             const SubGrid<simDim>& subGrid = Environment<simDim>::get().SubGrid();
@@ -1817,7 +1817,7 @@ make sure that environment variable OPENPMD_BP_BACKEND is not set to ADIOS1.
                 else
                 {
                     log<picLog::INPUT_OUTPUT>("openPMD: opening Series %1%") % threadParams->fileName;
-                    threadParams->openSeries(threadParams->writeMode);
+                    threadParams->openSeries(threadParams->writeAccess);
                 }
 
                 /* attributes written here are pure meta data */
