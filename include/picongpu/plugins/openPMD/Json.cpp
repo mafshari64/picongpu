@@ -339,7 +339,6 @@ The key 'select' must point to either a single string or an array of strings.)EN
          * careful memory configuration is necessary anyway, so the
          * defaults don't matter.
          */
-#    if OPENPMDAPI_VERSION_GE(0, 16, 0)
         /*
          * In openPMD >= 0.16, additionally ignore all attribute metadata
          * that comes from a rank other than rank 0.
@@ -351,47 +350,33 @@ The key 'select' must point to either a single string or an array of strings.)EN
          * safely ignore any attribute write if the current MPI rank is
          * not 0.
          */
-        std::string const& defaultValues = R"(
-{
-  "hdf5": {
-    "dataset": {
-      "chunks": "none"
-    }
-  },
-  "adios2": {
-    "attribute_writing_ranks": 0,
-    "engine": {
-      "preferred_flush_target": "buffer",
-      "parameters": {
-        "BufferChunkSize": 2147381248
-      }
-    }
-  }
-}
-        )";
-#    else
-        std::string const& defaultValues = R"(
-{
-  "hdf5": {
-    "dataset": {
-      "chunks": "none"
-    }
-  },
-  "adios2": {
-    "engine": {
-      "preferred_flush_target": "buffer",
-      "parameters": {
-        "BufferChunkSize": 2147381248
-      }
-    }
-  }
-}
-        )";
+        std::string const& baseConfigString = R"(
+        {
+          "hdf5": {
+            "dataset": {
+              "chunks": "none"
+            }
+          },
+          "adios2": {
+            "engine": {
+              "preferred_flush_target": "buffer",
+              "parameters": {
+                "BufferChunkSize": 2147381248
+              }
+            }
+          }
+        })";
+        auto baseConfig = nlohmann::json::parse(baseConfigString);
+#    if OPENPMDAPI_VERSION_GE(0, 16, 0)
+        {
+            std::string const& patchConfigString = R"(
+                {"adios2": {"attribute_writing_ranks": 0}})";
+            auto patchConfig = nlohmann::json::parse(patchConfigString);
+            baseConfig.merge_patch(patchConfig);
+        }
 #    endif
-        std::stringstream json_to_string;
-        json_to_string << config;
-        auto merged = openPMD::json::merge(defaultValues, json_to_string.str());
-        config = nlohmann::json::parse(merged);
+        baseConfig.merge_patch(config);
+        config = std::move(baseConfig);
     }
 } // namespace
 
