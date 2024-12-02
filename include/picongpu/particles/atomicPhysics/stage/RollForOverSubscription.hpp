@@ -68,34 +68,34 @@ namespace picongpu::particles::atomicPhysics::stage
             pmacc::AreaMapping<CORE + BORDER, MappingDesc> mapper(mappingDesc);
             pmacc::DataConnector& dc = pmacc::Environment<>::get().DataConnector();
 
-            auto& timeRemainingField
-                = *dc.get<localHelperFields::TimeRemainingField<picongpu::MappingDesc>>("TimeRemainingField");
+            auto timeRemainingField
+                = dc.get<localHelperFields::TimeRemainingField<picongpu::MappingDesc>>("TimeRemainingField");
 
-            auto& ions = *dc.get<IonSpecies>(IonSpecies::FrameType::getName());
+            auto ions = dc.get<IonSpecies>(IonSpecies::FrameType::getName());
 
-            auto& rejectionProbabilityCacheField_Bin
-                = *dc.get<localHelperFields::RejectionProbabilityCacheField_Bin<picongpu::MappingDesc>>(
+            auto rejectionProbabilityCacheField_Bin
+                = dc.get<localHelperFields::RejectionProbabilityCacheField_Bin<picongpu::MappingDesc>>(
                     "RejectionProbabilityCacheField_Bin");
-            auto& rejectionProbabilityCacheField_Cell
-                = *dc.get<localHelperFields::RejectionProbabilityCacheField_Cell<picongpu::MappingDesc>>(
+            auto rejectionProbabilityCacheField_Cell
+                = dc.get<localHelperFields::RejectionProbabilityCacheField_Cell<picongpu::MappingDesc>>(
                     "RejectionProbabilityCacheField_Cell");
 
-            auto& sharedResourcesOverSubscribedField
-                = *dc.get<localHelperFields::SharedResourcesOverSubscribedField<picongpu::MappingDesc>>(
+            auto sharedResourcesOverSubscribedField
+                = dc.get<localHelperFields::SharedResourcesOverSubscribedField<picongpu::MappingDesc>>(
                     "SharedResourcesOverSubscribedField");
 
             RngFactoryFloat rngFactory = RngFactoryFloat{currentStep};
 
             // macro for call of kernel for every superCell
-            PMACC_LOCKSTEP_KERNEL(picongpu::particles::atomicPhysics::kernel::RollForOverSubscriptionKernel())
-                .config(mapper.getGridDim(), ions)(
+            PMACC_LOCKSTEP_KERNEL(particles::atomicPhysics::kernel::RollForOverSubscriptionKernel())
+                .config(mapper.getGridDim(), *ions)(
                     mapper,
                     rngFactory,
-                    timeRemainingField.getDeviceDataBox(),
-                    sharedResourcesOverSubscribedField.getDeviceDataBox(),
-                    ions.getDeviceParticlesBox(),
-                    rejectionProbabilityCacheField_Bin.getDeviceDataBox(),
-                    rejectionProbabilityCacheField_Cell.getDeviceDataBox());
+                    timeRemainingField->getDeviceDataBox(),
+                    sharedResourcesOverSubscribedField->getDeviceDataBox(),
+                    ions->getDeviceParticlesBox(),
+                    rejectionProbabilityCacheField_Bin->getDeviceDataBox(),
+                    rejectionProbabilityCacheField_Cell->getDeviceDataBox());
         }
     };
 } // namespace picongpu::particles::atomicPhysics::stage

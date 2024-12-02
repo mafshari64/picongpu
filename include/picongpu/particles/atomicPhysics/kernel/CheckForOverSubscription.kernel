@@ -107,11 +107,11 @@ namespace picongpu::particles::atomicPhysics::kernel
             forEachBin(
                 [&histogram, &rejectionProbabilityCacheBin, &sharedResourcesOverSubscribed](uint32_t const binIndex)
                 {
-                    CalculateRejectionProbability::ofHistogramBin(
-                        binIndex,
-                        histogram,
-                        rejectionProbabilityCacheBin,
-                        sharedResourcesOverSubscribed);
+                    if(CalculateRejectionProbability::ofHistogramBin(
+                           binIndex,
+                           histogram,
+                           rejectionProbabilityCacheBin))
+                        sharedResourcesOverSubscribed = true;
                 });
 
             FieldEnergyUseCache const& eFieldEnergyUseCache = fieldEnergyUseCacheBox(superCellFieldIdx);
@@ -124,13 +124,13 @@ namespace picongpu::particles::atomicPhysics::kernel
                  &rejectionProbabilityCacheCell,
                  &sharedResourcesOverSubscribed](uint32_t const linearCellIndex)
                 {
-                    CalculateRejectionProbability::ofCell(
-                        linearCellIndex,
-                        superCellCellOffset,
-                        eFieldBox,
-                        eFieldEnergyUseCache,
-                        rejectionProbabilityCacheCell,
-                        sharedResourcesOverSubscribed);
+                    if(CalculateRejectionProbability::ofCell(
+                           linearCellIndex,
+                           superCellCellOffset,
+                           eFieldBox,
+                           eFieldEnergyUseCache,
+                           rejectionProbabilityCacheCell))
+                        sharedResourcesOverSubscribed = true;
                 });
 
             uint32_t& flagField = sharedResourcesOverSubscribedBox(superCellFieldIdx);

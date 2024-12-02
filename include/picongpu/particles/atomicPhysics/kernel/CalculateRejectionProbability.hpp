@@ -25,30 +25,32 @@
 
 namespace picongpu::particles::atomicPhysics::kernel
 {
-    /** methods for calculating the rejection probability
-     *
-     * @return sets the rejection probability cache entry for the specified entry to either
-     *  -1, no rejection probability necessary
-     *  >= 0, rejection probability
-     *
-     * also sets the flag sharedResourcesOverSubscribed to true if an over subscription is found
-     */
+    //! methods for calculating the rejection probability
     struct CalculateRejectionProbability
     {
         using VectorIdx = DataSpace<picongpu::simDim>;
 
+        /** store histogram bin rejection probability for specified bin in the passed rejectionProbabilityCacheBin
+         *
+         * @param binIndex
+         * @param histogram
+         * @param rejectionProbabilityCacheBin entry for bin will be set to -1 if no rejection necessary or rejection
+         *  probability, >= 0, otherwise
+         * @param sharedResourcesOverSubscribed previous state of sharedResourcesOverSubscribed
+         *
+         * @return bin is over subscribed
+         */
         template<typename T_Histogram, typename T_RejectionProbabilityCache_Bin>
-        HDINLINE static void ofHistogramBin(
+        HDINLINE static bool ofHistogramBin(
             uint32_t const binIndex,
             T_Histogram const& histogram,
-            T_RejectionProbabilityCache_Bin& rejectionProbabilityCacheBin,
-            bool& sharedResourcesOverSubscribed)
+            T_RejectionProbabilityCache_Bin& rejectionProbabilityCacheBin)
         {
             float_X const weight0 = histogram.getBinWeight0(binIndex);
             float_X const deltaWeight = histogram.getBinDeltaWeight(binIndex);
 
             float_X rejectionProbability = -1._X;
-
+            bool sharedResourcesOverSubscribed = false;
             if(weight0 < deltaWeight)
             {
                 // bin is oversubscribed by suggested changes
@@ -65,42 +67,50 @@ namespace picongpu::particles::atomicPhysics::kernel
             }
 
             rejectionProbabilityCacheBin.setBin(binIndex, rejectionProbability);
+            return sharedResourcesOverSubscribed;
         }
 
-        template<typename T_EFieldBox, typename T_EFieldEnergyUseCache, typename T_RejectionProbabilityCache_Cell>
-        HDINLINE static void ofCell(
+        /** store cell rejection probability for specified linearCellIndex in the passed rejectionProbabilityCacheCell
+         *
+         * @param linearCellIndex 1D index of the cell
+         * @param superCellCellOffset offset of the superCell in cells
+         * @param eFieldBox dataBox giving access to the eField Values of all local cells
+         * @param eFieldEnergyUseCacheCell cache of the EField energy use for each cell
+         * @param rejectionProbabilityCacheBin entry for bin will be set to -1 if no rejection necessary or rejection
+         *  probability, >= 0, otherwise
+         * @param sharedResourcesOverSubscribed previous state of sharedResourcesOverSubscribed
+         *
+         * @return cell is oversubscribed
+         */
+        template<typename T_EFieldBox, typename T_EFieldEnergyUseCacheCell, typename T_RejectionProbabilityCache_Cell>
+        HDINLINE static bool ofCell(
             uint32_t const linearCellIndex,
             VectorIdx const& superCellCellOffset,
             T_EFieldBox const eFieldBox,
-            T_EFieldEnergyUseCache& eFieldEnergyUseCache,
-            T_RejectionProbabilityCache_Cell& rejectionProbabilityCacheCell,
-            bool& sharedResourcesOverSubscribed)
+            T_EFieldEnergyUseCacheCell const& eFieldEnergyUseCacheCell,
+            T_RejectionProbabilityCache_Cell& rejectionProbabilityCacheCell)
         {
             VectorIdx const localCellIndex
                 = pmacc::math::mapToND(picongpu::SuperCellSize::toRT(), static_cast<int>(linearCellIndex));
             VectorIdx const cellIndex = localCellIndex + superCellCellOffset;
 
-            // sim.unit.charge()^2 * sim.unit.time()^2 / (sim.unit.mass() * sim.unit.length()^3)
-            //  * sim.unit.length()^3
-            // = sim.unit.charge()^2 * sim.unit.time()^2 / sim.unit.mass()
+            /* unit: unit_charge^2 * unit_time^2 / (unit_mass * unit_length^3)
+             *  * unit_length^3
+             * = unit_charge^2 * unit_time^2 / unit_mass */
             constexpr float_X eps0HalfTimesCellVolume
                 = (picongpu::sim.pic.getEps0() / 2._X) * picongpu::sim.pic.getCellSize().productOfComponents();
 
-            // sim.unit.charge()^2 * sim.unit.time()^2 / sim.unit.mass()
-            //  * ((sim.unit.mass() * sim.unit.length())/(sim.unit.time()^2 * sim.unit.charge()))^2
-            // = sim.unit.charge()^2 * sim.unit.time()^2 * sim.unit.mass()^2 * sim.unit.length()^2
-            //  / (sim.unit.mass() * sim.unit.time()^4 * sim.unit.charge()^2)
-            // = sim.unit.mass() * sim.unit.length()^2/ (sim.unit.time()^2 * sim.unit.length())
-            // sim.unit.energy()
+            /* unit: unit_charge^2 * unit_time^2 / unit_mass * ((unit_mass * unit_length)/(unit_time^2 *
+             * unit_charge))^2 = unit_charge^2 * unit_time^2 * unit_mass^2 * unit_length^2 / (unit_mass * unit_time^4 *
+             * unit_charge^2) = unit_mass * unit_length^2/ (unit_time^2 * unit_length) = unit_energy */
             float_X const eFieldEnergy = eps0HalfTimesCellVolume * pmacc::math::l2norm2(eFieldBox(cellIndex));
 
-            // eV * 1 = eV * sim.unit.energy()/sim.unit.energy() = (ev / sim.unit.energy()) * sim.unit.energy()
-            // sim.unit.energy()
+            // unit: eV * 1 = eV * unit_energy/unit_energy = (ev / unit_energy) * unit_energy = unit_energy
             float_X const eFieldEnergyUse
-                = picongpu::sim.pic.get_eV() * eFieldEnergyUseCache.energyUsed(linearCellIndex);
+                = picongpu::sim.pic.get_eV() * eFieldEnergyUseCacheCell.energyUsed(linearCellIndex);
 
             float_X rejectionProbability = -1._X;
-
+            bool sharedResourcesOverSubscribed = false;
             if(eFieldEnergyUse > eFieldEnergy)
             {
                 // cell is oversubscribed by suggested changes
@@ -117,6 +127,7 @@ namespace picongpu::particles::atomicPhysics::kernel
             }
 
             rejectionProbabilityCacheCell.setCell(linearCellIndex, rejectionProbability);
+            return sharedResourcesOverSubscribed;
         }
     };
 } // namespace picongpu::particles::atomicPhysics::kernel
