@@ -25,7 +25,8 @@
 #include "picongpu/particles/atomicPhysics/enums/IsProcess.hpp"
 #include "picongpu/particles/atomicPhysics/enums/ProcessClass.hpp"
 #include "picongpu/particles/atomicPhysics/enums/ProcessClassGroup.hpp"
-#include "picongpu/particles/atomicPhysics/localHelperFields/RejectionProbabilityCache.hpp"
+#include "picongpu/particles/atomicPhysics/localHelperFields/RejectionProbabilityCache_Bin.hpp"
+#include "picongpu/particles/atomicPhysics/localHelperFields/RejectionProbabilityCache_Cell.hpp"
 
 #include <pmacc/particles/algorithm/ForEach.hpp>
 
@@ -35,12 +36,16 @@ namespace picongpu::particles::atomicPhysics::kernel
 {
     /** roll for over subscription kernel
      *
-     * check for each macro ion, whether the ion accepted a transition, the accepted
-     *  transition is a collisional transition and whether the interaction bin is over
-     *  subscribed. If yes roll for rejection of the transition.
-     * Rejection probability stored for each bin in localRejectionProbabilityCache.
+     * check for each macro ion with an accepted a transition, whether:
+     *  - the accepted transition is a collisional transition and whether the interaction bin is over subscribed
+     * or
+     *  - the accepted transition is a field based transition and whether the macro ions' cell is over subscribed
+     *
+     * If yes roll for rejection of the transition.
+     *
+     * Rejection probability stored for each bin in rejectionProbabilityCache_Bin and for each cell in
+     *   rejectionProbabilityCache_Cell.
      */
-    template<typename T_RejectionProbabilityCache>
     struct RollForOverSubscriptionKernel
     {
         /** call operator
@@ -51,13 +56,14 @@ namespace picongpu::particles::atomicPhysics::kernel
          *  passed by PMACC_KERNEL call
          * @param areMapping mapping of blockIndex to block superCell index
          * @param rngFactory random number generator factory
-         * @param timeRemainingBox deviceDataBox giving access to the local time remaining of all local super
-         * cells
-         * @param sharedResourceOverSubscribedBox deviceDataBox giving access to
-         *  the histogram oversubscribed switch of all local superCells
+         * @param timeRemainingBox deviceDataBox giving access to the local time remaining of all local superCells
+         * @param sharedResourceOverSubscribedBox deviceDataBox giving access to the shared resources oversubscribed
+         *  flag of all local superCells
          * @param ionBox deviceDataBox giving access to the particle frames of all local superCells
-         * @param rejectionProbabilityCacheBox deviceDataBox giving access to the
-         *  local RejectionProbabilityCache of each local superCells
+         * @param rejectionProbabilityCacheBinBox deviceDataBox giving access to the rejectionProbabilityCache_Bin
+         *  of each local superCell
+         * @param rejectionProbabilityCacheCellBox deviceDataBox giving access to the rejectionProbabilityCache_Cell
+         *  of each local superCell
          */
         template<
             typename T_Worker,
@@ -66,7 +72,8 @@ namespace picongpu::particles::atomicPhysics::kernel
             typename T_TimeRemainingBox,
             typename T_SharedResourceOverSubscribedBox,
             typename T_IonBox,
-            typename T_RejectionProbabilityCacheDataBox>
+            typename T_RejectionProbabilityCacheBinDataBox,
+            typename T_RejectionProbabilityCacheCellDataBox>
         HDINLINE void operator()(
             T_Worker const& worker,
             T_AreaMapping const areaMapping,
@@ -75,7 +82,8 @@ namespace picongpu::particles::atomicPhysics::kernel
             T_TimeRemainingBox const timeRemainingBox,
             T_SharedResourceOverSubscribedBox const sharedResourceOverSubscribedBox,
             T_IonBox ionBox,
-            T_RejectionProbabilityCacheDataBox rejectionProbabilityCacheBox) const
+            T_RejectionProbabilityCacheBinDataBox rejectionProbabilityCacheBinBox,
+            T_RejectionProbabilityCacheCellDataBox rejectionProbabilityCacheCellBox) const
         {
             auto const superCellIdx = KernelIndexation::getSuperCellIndex(worker, areaMapping);
             auto const superCellFieldIdx
@@ -94,8 +102,14 @@ namespace picongpu::particles::atomicPhysics::kernel
                 return;
 
             /// @todo cache in shared memory, Brian Marre, 2024
-            T_RejectionProbabilityCache const& rejectionProbabilityCache
-                = rejectionProbabilityCacheBox(superCellFieldIdx);
+            using RejectionProbabilityCache_Bin = typename T_RejectionProbabilityCacheBinDataBox::ValueType;
+            RejectionProbabilityCache_Bin const& rejectionProbabilityCache_Bin
+                = rejectionProbabilityCacheBinBox(superCellFieldIdx);
+
+            using RejectionProbabilityCache_Cell = typename T_RejectionProbabilityCacheCellDataBox::ValueType;
+            RejectionProbabilityCache_Cell const& rejectionProbabilityCache_Cell
+                = rejectionProbabilityCacheCellBox(superCellFieldIdx);
+
             auto rngGenerator = rngFactory(worker, superCellFieldIdx);
 
             // try to reject each accepted macro-ion, which takes from an oversubscribed bin
@@ -122,12 +136,12 @@ namespace picongpu::particles::atomicPhysics::kernel
                     float_X rejectionProbability;
                     if(usesElectronHistogramWeight)
                     {
-                        rejectionProbability = rejectionProbabilityCache.getRejectionProbabilityBin(binIndex);
+                        rejectionProbability = rejectionProbabilityCache_Bin.getRejectionProbabilityBin(binIndex);
                     }
                     else
                     {
                         /// @note (usesElectricFieldEnergy == true)
-                        rejectionProbability = rejectionProbabilityCache.getRejectionProbabilityCell(cellIndex);
+                        rejectionProbability = rejectionProbabilityCache_Cell.getRejectionProbabilityCell(cellIndex);
                     }
                     bool const usesOverSubscribedResource = (rejectionProbability > 0._X);
 

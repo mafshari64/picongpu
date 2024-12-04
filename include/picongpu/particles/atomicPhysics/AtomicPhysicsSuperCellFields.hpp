@@ -24,7 +24,8 @@
 #include "picongpu/particles/atomicPhysics/electronDistribution/LocalHistogramField.hpp"
 #include "picongpu/particles/atomicPhysics/localHelperFields/FieldEnergyUseCacheField.hpp"
 #include "picongpu/particles/atomicPhysics/localHelperFields/FoundUnboundIonField.hpp"
-#include "picongpu/particles/atomicPhysics/localHelperFields/RejectionProbabilityCacheField.hpp"
+#include "picongpu/particles/atomicPhysics/localHelperFields/RejectionProbabilityCacheField_Bin.hpp"
+#include "picongpu/particles/atomicPhysics/localHelperFields/RejectionProbabilityCacheField_Cell.hpp"
 #include "picongpu/particles/atomicPhysics/localHelperFields/SharedResourcesOverSubscribedField.hpp"
 #include "picongpu/particles/atomicPhysics/localHelperFields/TimeRemainingField.hpp"
 #include "picongpu/particles/atomicPhysics/localHelperFields/TimeStepField.hpp"
@@ -81,11 +82,17 @@ namespace picongpu::particles::atomicPhysics
                 = std::make_unique<localHelperFields::FoundUnboundIonField<picongpu::MappingDesc>>(mappingDesc);
             dataConnector.consume(std::move(foundUnboundIonField));
 
-            // local rejection probability for each over-subscribed bin of the electron histogram
-            auto superCellRejectionProbabilityCacheField
-                = std::make_unique<localHelperFields::RejectionProbabilityCacheField<picongpu::MappingDesc>>(
+            // local rejection probability for each over-subscribed cell
+            auto superCellRejectionProbabilityCacheField_Cell
+                = std::make_unique<localHelperFields::RejectionProbabilityCacheField_Cell<picongpu::MappingDesc>>(
                     mappingDesc);
-            dataConnector.consume(std::move(superCellRejectionProbabilityCacheField));
+            dataConnector.consume(std::move(superCellRejectionProbabilityCacheField_Cell));
+
+            // local rejection probability for each over-subscribed electron histogram bin
+            auto superCellRejectionProbabilityCacheField_Bin
+                = std::make_unique<localHelperFields::RejectionProbabilityCacheField_Bin<picongpu::MappingDesc>>(
+                    mappingDesc);
+            dataConnector.consume(std::move(superCellRejectionProbabilityCacheField_Bin));
 
             // local field energy use cache
             auto superCellFieldEnergyUseCacheField

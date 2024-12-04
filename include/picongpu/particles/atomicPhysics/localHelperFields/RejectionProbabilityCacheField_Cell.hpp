@@ -25,35 +25,30 @@
 
 #include "picongpu/defines.hpp"
 #include "picongpu/particles/atomicPhysics/SuperCellField.hpp"
-#include "picongpu/particles/atomicPhysics/localHelperFields/RejectionProbabilityCache.hpp"
+#include "picongpu/particles/atomicPhysics/localHelperFields/RejectionProbabilityCache_Cell.hpp"
 #include "picongpu/particles/atomicPhysics/param.hpp"
 
 #include <cstdint>
 
 namespace picongpu::particles::atomicPhysics::localHelperFields
 {
-    /**@class superCell field of the rejectionProbabilityCache
+    /** superCell field of the rejectionProbabilityCache for all cells
      *
      * @tparam T_MappingDescription description of local mapping from device to grid
      */
     template<typename T_MappingDescription>
-    struct RejectionProbabilityCacheField
+    struct RejectionProbabilityCacheField_Cell
         : public SuperCellField<
-              RejectionProbabilityCache<
-                  picongpu::atomicPhysics::ElectronHistogram::numberBins,
-                  pmacc::math::CT::volume<picongpu::SuperCellSize>::type::value>,
+              RejectionProbabilityCache_Cell<pmacc::math::CT::volume<picongpu::SuperCellSize>::type::value>,
               T_MappingDescription,
               false /*no guards*/>
     {
-        using ElementType = RejectionProbabilityCache<
-            picongpu::atomicPhysics::ElectronHistogram::numberBins,
-            pmacc::math::CT::volume<picongpu::SuperCellSize>::type::value>;
+        using ElementType
+            = RejectionProbabilityCache_Cell<pmacc::math::CT::volume<picongpu::SuperCellSize>::type::value>;
 
-        RejectionProbabilityCacheField(T_MappingDescription const& mappingDesc)
+        RejectionProbabilityCacheField_Cell(T_MappingDescription const& mappingDesc)
             : SuperCellField<
-                RejectionProbabilityCache<
-                    picongpu::atomicPhysics::ElectronHistogram::numberBins,
-                    pmacc::math::CT::volume<picongpu::SuperCellSize>::type::value>,
+                RejectionProbabilityCache_Cell<pmacc::math::CT::volume<picongpu::SuperCellSize>::type::value>,
                 T_MappingDescription,
                 false /*no guards*/>(mappingDesc)
         {
@@ -62,7 +57,7 @@ namespace picongpu::particles::atomicPhysics::localHelperFields
         // required by ISimulationData
         std::string getUniqueId() override
         {
-            return "RejectionProbabilityCacheField";
+            return "RejectionProbabilityCacheField_Cell";
         }
     };
 } // namespace picongpu::particles::atomicPhysics::localHelperFields

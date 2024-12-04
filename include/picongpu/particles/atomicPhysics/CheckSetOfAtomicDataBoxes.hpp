@@ -22,6 +22,8 @@
 // need unit.param for normalisation and units, memory.param for SuperCellSize and dim.param for simDim
 #include "picongpu/defines.hpp"
 #include "picongpu/particles/atomicPhysics/ConvertEnum.hpp"
+#include "picongpu/particles/atomicPhysics/enums/IsProcess.hpp"
+#include "picongpu/particles/atomicPhysics/enums/ProcessClass.hpp"
 #include "picongpu/particles/atomicPhysics/enums/ProcessClassGroup.hpp"
 #include "picongpu/particles/atomicPhysics/enums/TransitionDirection.hpp"
 #include "picongpu/particles/atomicPhysics/enums/TransitionOrdering.hpp"
@@ -71,6 +73,35 @@ namespace picongpu::particles::atomicPhysics
                 T_AtomicStateBoundFreeStartIndexBlockDataBox,
                 T_AtomicStateBoundFreeNumberTransitionsDataBox,
                 T_BoundFreeTransitionDataBox>();
+        }
+
+        //! check that the processClass matches the TransitionDataBox passed in TransitionOrdering and TransitionType
+        template<s_enums::ProcessClass T_ProcessClass, typename T_TransitionDataBox>
+        static constexpr bool transitionDataBoxMatchesProcessClass()
+        {
+            PMACC_CASSERT_MSG(
+                transition_dataBox_and_processClass_inconsistent,
+                s_enums::IsProcess<T_TransitionDataBox::processClassGroup>::check(u8(T_ProcessClass)));
+
+            constexpr bool isUpward
+                = s_enums::IsProcess<s_enums::ProcessClassGroup::upward>::check(u8(T_ProcessClass));
+
+            /* check ordering consistent with direction of T_ProcessClass, otherwise unphysical behaviour and/or
+             * illegal memory accesses */
+            if constexpr(isUpward)
+            {
+                PMACC_CASSERT_MSG(
+                    transition_databOxOrdering_and_processClass_inconsistent,
+                    T_TransitionDataBox::transitionOrdering == s_enums::TransitionOrdering::byLowerState);
+            }
+            else
+            {
+                PMACC_CASSERT_MSG(
+                    transition_databOxOrdering_and_processClass_inconsistent,
+                    T_TransitionDataBox::transitionOrdering == s_enums::TransitionOrdering::byUpperState);
+            }
+
+            return true;
         }
     };
 } // namespace picongpu::particles::atomicPhysics

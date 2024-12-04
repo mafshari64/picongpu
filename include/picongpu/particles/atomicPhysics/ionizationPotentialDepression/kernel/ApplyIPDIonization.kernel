@@ -206,7 +206,10 @@ namespace picongpu::particles::atomicPhysics::ionizationPotentialDepression::ker
 
             if(ipdIonizationEnergy < 0._X)
             {
-                // update ion
+                /* we only update the atomic state since IPDIonization is not a regular transition and does not use
+                 *   shared resources */
+
+                // update ion atomic state
                 SetAtomicState::hard(
                     ion,
                     T_ChargeStateDataBox::atomicNumber - ipdIonizationStateChargeState,

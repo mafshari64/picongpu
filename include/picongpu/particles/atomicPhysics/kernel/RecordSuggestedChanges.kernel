@@ -31,7 +31,8 @@
 
 namespace picongpu::particles::atomicPhysics::kernel
 {
-    /** record used weight from bin of electron histogram for each accepted transition
+    /** record used weight from bins of electron histogram and used field energy of cells for each accepted transition
+     *  of an macro ion
      *
      * @tparam T_IPDModel ionization potential depression model to use
      * @tparam T_atLeastOneElectronicCollisionalProcessActive is channel at least one electronic collisional channel
