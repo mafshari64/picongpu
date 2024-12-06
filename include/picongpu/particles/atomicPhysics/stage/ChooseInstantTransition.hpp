@@ -81,14 +81,14 @@ namespace picongpu::particles::atomicPhysics::stage
                 pmacc::AreaMapping<CORE + BORDER, MappingDesc> mapper(mappingDesc);
                 pmacc::DataConnector& dc = pmacc::Environment<>::get().DataConnector();
 
-                auto& timeRemainingField
-                    = *dc.get<particles::atomicPhysics::localHelperFields::TimeRemainingField<picongpu::MappingDesc>>(
+                auto timeRemainingField
+                    = dc.get<particles::atomicPhysics::localHelperFields::TimeRemainingField<picongpu::MappingDesc>>(
                         "TimeRemainingField");
-                auto& foundUnboundIonField = *dc.get<
-                    particles::atomicPhysics::localHelperFields::FoundUnboundIonField<picongpu::MappingDesc>>(
-                    "FoundUnboundIonField");
-                auto& eField = *dc.get<FieldE>(FieldE::getName());
-                auto& ions = *dc.get<IonSpecies>(IonSpecies::FrameType::getName());
+                auto foundUnboundIonField
+                    = dc.get<particles::atomicPhysics::localHelperFields::FoundUnboundIonField<picongpu::MappingDesc>>(
+                        "FoundUnboundIonField");
+                auto eField = dc.get<FieldE>(FieldE::getName());
+                auto ions = dc.get<IonSpecies>(IonSpecies::FrameType::getName());
                 RngFactoryFloat rngFactoryFloat = RngFactoryFloat{currentStep};
 
                 constexpr uint32_t numberAtomicStatesOfSpecies
@@ -99,23 +99,23 @@ namespace picongpu::particles::atomicPhysics::stage
                     AtomicDataType::ADKLaserPolarization>;
 
                 /// @todo implement iteration to capture field strength decrease, Brian Marre, 2024
-                auto& atomicData = *dc.get<AtomicDataType>(IonSpecies::FrameType::getName() + "_atomicData");
+                auto atomicData = dc.get<AtomicDataType>(IonSpecies::FrameType::getName() + "_atomicData");
                 IPDModel::template callKernelWithIPDInput<
                     ChooseInstantNonReversibleTransition,
                     IonSpecies::FrameType::frameSize>(
                     dc,
                     mapper,
                     rngFactoryFloat,
-                    atomicData.template getChargeStateDataDataBox<false>(),
-                    atomicData.template getAtomicStateDataDataBox<false>(),
-                    atomicData.template getBoundFreeStartIndexBlockDataBox<false>(),
-                    atomicData.template getBoundFreeNumberTransitionsDataBox<false>(),
+                    atomicData->template getChargeStateDataDataBox<false>(),
+                    atomicData->template getAtomicStateDataDataBox<false>(),
+                    atomicData->template getBoundFreeStartIndexBlockDataBox<false>(),
+                    atomicData->template getBoundFreeNumberTransitionsDataBox<false>(),
                     atomicData
-                        .template getBoundFreeTransitionDataBox<false, s_enums::TransitionOrdering::byLowerState>(),
-                    timeRemainingField.getDeviceDataBox(),
-                    foundUnboundIonField.getDeviceDataBox(),
-                    eField.getDeviceDataBox(),
-                    ions.getDeviceParticlesBox());
+                        ->template getBoundFreeTransitionDataBox<false, s_enums::TransitionOrdering::byLowerState>(),
+                    timeRemainingField->getDeviceDataBox(),
+                    foundUnboundIonField->getDeviceDataBox(),
+                    eField->getDeviceDataBox(),
+                    ions->getDeviceParticlesBox());
             }
         }
     };

@@ -58,11 +58,11 @@ namespace picongpu::particles::atomicPhysics::stage
                 pmacc::AreaMapping<CORE + BORDER, MappingDesc> mapper(mappingDesc);
                 pmacc::DataConnector& dc = pmacc::Environment<>::get().DataConnector();
 
-                auto& timeRemainingField
-                    = *dc.get<particles::atomicPhysics::localHelperFields::TimeRemainingField<picongpu::MappingDesc>>(
+                auto timeRemainingField
+                    = dc.get<particles::atomicPhysics::localHelperFields::TimeRemainingField<picongpu::MappingDesc>>(
                         "TimeRemainingField");
-                auto& ions = *dc.get<IonSpecies>(IonSpecies::FrameType::getName());
-                auto& atomicData = *dc.get<AtomicDataType>(IonSpecies::FrameType::getName() + "_atomicData");
+                auto ions = dc.get<IonSpecies>(IonSpecies::FrameType::getName());
+                auto atomicData = dc.get<AtomicDataType>(IonSpecies::FrameType::getName() + "_atomicData");
 
                 namespace s_enums = particles::atomicPhysics::enums;
 
@@ -70,12 +70,12 @@ namespace picongpu::particles::atomicPhysics::stage
                     = picongpu::particles::atomicPhysics::kernel::UpdateIonAtomicStateKernel<
                         s_enums::ProcessClass::fieldIonization>;
                 PMACC_LOCKSTEP_KERNEL(UpdateIonAtomicState_fieldIonization())
-                    .config(mapper.getGridDim(), ions)(
+                    .config(mapper.getGridDim(), *ions)(
                         mapper,
-                        timeRemainingField.getDeviceDataBox(),
-                        ions.getDeviceParticlesBox(),
-                        atomicData.template getAtomicStateDataDataBox<false>(),
-                        atomicData.template getBoundFreeTransitionDataBox<
+                        timeRemainingField->getDeviceDataBox(),
+                        ions->getDeviceParticlesBox(),
+                        atomicData->template getAtomicStateDataDataBox<false>(),
+                        atomicData->template getBoundFreeTransitionDataBox<
                             false,
                             s_enums::TransitionOrdering::byLowerState>());
             }

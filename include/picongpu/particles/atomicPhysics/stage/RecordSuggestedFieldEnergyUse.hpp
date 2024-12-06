@@ -62,15 +62,15 @@ namespace picongpu::particles::atomicPhysics::stage
             pmacc::DataConnector& dc = pmacc::Environment<>::get().DataConnector();
 
             using AtomicDataType = typename picongpu::traits::GetAtomicDataType<IonSpecies>::type;
-            auto& atomicData = *dc.get<AtomicDataType>(IonSpecies::FrameType::getName() + "_atomicData");
+            auto atomicData = dc.get<AtomicDataType>(IonSpecies::FrameType::getName() + "_atomicData");
 
-            auto& timeRemainingField = *dc.get<
+            auto timeRemainingField = dc.get<
                 picongpu::particles::atomicPhysics::localHelperFields::TimeRemainingField<picongpu::MappingDesc>>(
                 "TimeRemainingField");
-            auto& fieldEnergyUseCacheField = *dc.get<
-                particles::atomicPhysics::localHelperFields::FieldEnergyUseCacheField<picongpu::MappingDesc>>(
-                "FieldEnergyUseCacheField");
-            auto& ions = *dc.get<IonSpecies>(IonSpecies::FrameType::getName());
+            auto fieldEnergyUseCacheField
+                = dc.get<particles::atomicPhysics::localHelperFields::FieldEnergyUseCacheField<picongpu::MappingDesc>>(
+                    "FieldEnergyUseCacheField");
+            auto ions = dc.get<IonSpecies>(IonSpecies::FrameType::getName());
 
             using IPDModel = picongpu::atomicPhysics::IPDModel;
 
@@ -79,14 +79,14 @@ namespace picongpu::particles::atomicPhysics::stage
                 IonSpecies::FrameType::frameSize>(
                 dc,
                 mapper,
-                atomicData.template getChargeStateDataDataBox<false>(),
-                atomicData.template getAtomicStateDataDataBox<false>(),
-                atomicData.template getBoundFreeTransitionDataBox<
+                atomicData->template getChargeStateDataDataBox<false>(),
+                atomicData->template getAtomicStateDataDataBox<false>(),
+                atomicData->template getBoundFreeTransitionDataBox<
                     false,
                     picongpu::particles::atomicPhysics::enums::TransitionOrdering::byLowerState>(),
-                timeRemainingField.getDeviceDataBox(),
-                fieldEnergyUseCacheField.getDeviceDataBox(),
-                ions.getDeviceParticlesBox());
+                timeRemainingField->getDeviceDataBox(),
+                fieldEnergyUseCacheField->getDeviceDataBox(),
+                ions->getDeviceParticlesBox());
         }
     };
 

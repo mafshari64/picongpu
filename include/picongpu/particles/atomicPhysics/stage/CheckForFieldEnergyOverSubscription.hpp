@@ -56,24 +56,24 @@ namespace picongpu::particles::atomicPhysics::stage
             pmacc::AreaMapping<CORE + BORDER, MappingDesc> mapper(mappingDesc);
             pmacc::DataConnector& dc = pmacc::Environment<>::get().DataConnector();
 
-            auto& timeRemainingField = *dc.get<
+            auto timeRemainingField = dc.get<
                 picongpu::particles::atomicPhysics::localHelperFields::TimeRemainingField<picongpu::MappingDesc>>(
                 "TimeRemainingField");
 
-            auto& sharedResourcesOverSubscribedField
-                = *dc.get<picongpu::particles::atomicPhysics::localHelperFields::SharedResourcesOverSubscribedField<
+            auto sharedResourcesOverSubscribedField
+                = dc.get<picongpu::particles::atomicPhysics::localHelperFields::SharedResourcesOverSubscribedField<
                     picongpu::MappingDesc>>("SharedResourcesOverSubscribedField");
 
-            auto& rejectionProbabilityCacheField_Cell
-                = *dc.get<picongpu::particles::atomicPhysics::localHelperFields::RejectionProbabilityCacheField_Cell<
+            auto rejectionProbabilityCacheField_Cell
+                = dc.get<picongpu::particles::atomicPhysics::localHelperFields::RejectionProbabilityCacheField_Cell<
                     picongpu::MappingDesc>>("RejectionProbabilityCacheField_Cell");
 
-            auto& eField = *dc.get<FieldE>(FieldE::getName());
+            auto eField = dc.get<FieldE>(FieldE::getName());
 
             using FieldEnergyUseCacheField
                 = picongpu::particles::atomicPhysics::localHelperFields::FieldEnergyUseCacheField<
                     picongpu::MappingDesc>;
-            auto& fieldEnergyUseCacheField = *dc.get<FieldEnergyUseCacheField>("FieldEnergyUseCacheField");
+            auto fieldEnergyUseCacheField = dc.get<FieldEnergyUseCacheField>("FieldEnergyUseCacheField");
 
             // macro for call of kernel for every superCell, see pull request #4321
             PMACC_LOCKSTEP_KERNEL(
@@ -81,11 +81,11 @@ namespace picongpu::particles::atomicPhysics::stage
                     T_numberAtomicPhysicsIonSpecies>())
                 .template config<FieldEnergyUseCacheField::ValueType::numberCells>(mapper.getGridDim())(
                     mapper,
-                    timeRemainingField.getDeviceDataBox(),
-                    eField.getDeviceDataBox(),
-                    fieldEnergyUseCacheField.getDeviceDataBox(),
-                    sharedResourcesOverSubscribedField.getDeviceDataBox(),
-                    rejectionProbabilityCacheField_Cell.getDeviceDataBox());
+                    timeRemainingField->getDeviceDataBox(),
+                    eField->getDeviceDataBox(),
+                    fieldEnergyUseCacheField->getDeviceDataBox(),
+                    sharedResourcesOverSubscribedField->getDeviceDataBox(),
+                    rejectionProbabilityCacheField_Cell->getDeviceDataBox());
 
             /// @todo implement photon histogram, Brian Marre, 2023
         }

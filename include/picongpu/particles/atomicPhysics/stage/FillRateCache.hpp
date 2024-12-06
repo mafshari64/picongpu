@@ -76,21 +76,21 @@ namespace picongpu::particles::atomicPhysics::stage
             pmacc::AreaMapping<CORE + BORDER, MappingDesc> mapper(mappingDesc);
             pmacc::DataConnector& dc = pmacc::Environment<>::get().DataConnector();
 
-            auto& timeRemainingField = *dc.get<
+            auto timeRemainingField = dc.get<
                 picongpu::particles::atomicPhysics::localHelperFields::TimeRemainingField<picongpu::MappingDesc>>(
                 "TimeRemainingField");
 
-            auto& rateCacheField = *dc.get<picongpu::particles::atomicPhysics::localHelperFields::
-                                               RateCacheField<picongpu::MappingDesc, IonSpecies>>(
+            auto rateCacheField = dc.get<picongpu::particles::atomicPhysics::localHelperFields::
+                                             RateCacheField<picongpu::MappingDesc, IonSpecies>>(
                 IonSpecies::FrameType::getName() + "_rateCacheField");
 
-            auto& electronHistogramField
-                = *dc.get<picongpu::particles::atomicPhysics::electronDistribution::
-                              LocalHistogramField<picongpu::atomicPhysics::ElectronHistogram, picongpu::MappingDesc>>(
+            auto electronHistogramField
+                = dc.get<picongpu::particles::atomicPhysics::electronDistribution::
+                             LocalHistogramField<picongpu::atomicPhysics::ElectronHistogram, picongpu::MappingDesc>>(
                     "Electron_HistogramField");
 
             using AtomicDataType = typename picongpu::traits::GetAtomicDataType<IonSpecies>::type;
-            auto& atomicData = *dc.get<AtomicDataType>(IonSpecies::FrameType::getName() + "_atomicData");
+            auto atomicData = dc.get<AtomicDataType>(IonSpecies::FrameType::getName() + "_atomicData");
 
             constexpr uint8_t n_max = AtomicDataType::ConfigNumber::numberLevels;
             constexpr uint32_t numberAtomicStatesOfSpecies
@@ -113,13 +113,13 @@ namespace picongpu::particles::atomicPhysics::stage
                 PMACC_LOCKSTEP_KERNEL(FillRateCacheUpWardBoundBound())
                     .template config<IonSpecies::FrameType::frameSize>(mapper.getGridDim())(
                         mapper,
-                        timeRemainingField.getDeviceDataBox(),
-                        rateCacheField.getDeviceDataBox(),
-                        electronHistogramField.getDeviceDataBox(),
-                        atomicData.template getAtomicStateDataDataBox<false>(),
-                        atomicData.template getBoundBoundStartIndexBlockDataBox<false>(),
-                        atomicData.template getBoundBoundNumberTransitionsDataBox<false>(),
-                        atomicData.template getBoundBoundTransitionDataBox<
+                        timeRemainingField->getDeviceDataBox(),
+                        rateCacheField->getDeviceDataBox(),
+                        electronHistogramField->getDeviceDataBox(),
+                        atomicData->template getAtomicStateDataDataBox<false>(),
+                        atomicData->template getBoundBoundStartIndexBlockDataBox<false>(),
+                        atomicData->template getBoundBoundNumberTransitionsDataBox<false>(),
+                        atomicData->template getBoundBoundTransitionDataBox<
                             false,
                             enums::TransitionOrdering::byLowerState>());
             }
@@ -139,13 +139,13 @@ namespace picongpu::particles::atomicPhysics::stage
                 PMACC_LOCKSTEP_KERNEL(FillRateCacheDownWardBoundBound())
                     .template config<IonSpecies::FrameType::frameSize>(mapper.getGridDim())(
                         mapper,
-                        timeRemainingField.getDeviceDataBox(),
-                        rateCacheField.getDeviceDataBox(),
-                        electronHistogramField.getDeviceDataBox(),
-                        atomicData.template getAtomicStateDataDataBox<false>(),
-                        atomicData.template getBoundBoundStartIndexBlockDataBox<false>(),
-                        atomicData.template getBoundBoundNumberTransitionsDataBox<false>(),
-                        atomicData.template getBoundBoundTransitionDataBox<
+                        timeRemainingField->getDeviceDataBox(),
+                        rateCacheField->getDeviceDataBox(),
+                        electronHistogramField->getDeviceDataBox(),
+                        atomicData->template getAtomicStateDataDataBox<false>(),
+                        atomicData->template getBoundBoundStartIndexBlockDataBox<false>(),
+                        atomicData->template getBoundBoundNumberTransitionsDataBox<false>(),
+                        atomicData->template getBoundBoundTransitionDataBox<
                             false,
                             enums::TransitionOrdering::byUpperState>());
             }
@@ -165,20 +165,21 @@ namespace picongpu::particles::atomicPhysics::stage
                     AtomicDataType::switchFieldIonization,
                     enums::TransitionOrdering::byLowerState>;
 
-                IPDModel::
-                    template callKernelWithIPDInput<FillRateCacheUpWardBoundFree, IonSpecies::FrameType::frameSize>(
-                        dc,
-                        mapper,
-                        timeRemainingField.getDeviceDataBox(),
-                        rateCacheField.getDeviceDataBox(),
-                        electronHistogramField.getDeviceDataBox(),
-                        eField.getDeviceDataBox(),
-                        atomicData.template getChargeStateDataDataBox<false>(),
-                        atomicData.template getAtomicStateDataDataBox<false>(),
-                        atomicData.template getBoundFreeStartIndexBlockDataBox<false>(),
-                        atomicData.template getBoundFreeNumberTransitionsDataBox<false>(),
-                        atomicData
-                            .template getBoundFreeTransitionDataBox<false, enums::TransitionOrdering::byLowerState>());
+                IPDModel::template callKernelWithIPDInput<
+                    FillRateCacheUpWardBoundFree,
+                    IonSpecies::FrameType::frameSize>(
+                    dc,
+                    mapper,
+                    timeRemainingField->getDeviceDataBox(),
+                    rateCacheField->getDeviceDataBox(),
+                    electronHistogramField->getDeviceDataBox(),
+                    eField.getDeviceDataBox(),
+                    atomicData->template getChargeStateDataDataBox<false>(),
+                    atomicData->template getAtomicStateDataDataBox<false>(),
+                    atomicData->template getBoundFreeStartIndexBlockDataBox<false>(),
+                    atomicData->template getBoundFreeNumberTransitionsDataBox<false>(),
+                    atomicData
+                        ->template getBoundFreeTransitionDataBox<false, enums::TransitionOrdering::byLowerState>());
             }
 
             //    downward autonomous transition rates
@@ -192,11 +193,11 @@ namespace picongpu::particles::atomicPhysics::stage
                 PMACC_LOCKSTEP_KERNEL(FillRateCacheAutonomous())
                     .template config<IonSpecies::FrameType::frameSize>(mapper.getGridDim())(
                         mapper,
-                        timeRemainingField.getDeviceDataBox(),
-                        rateCacheField.getDeviceDataBox(),
-                        atomicData.template getAutonomousStartIndexBlockDataBox<false>(),
-                        atomicData.template getAutonomousNumberTransitionsDataBox<false>(),
-                        atomicData.template getAutonomousTransitionDataBox<
+                        timeRemainingField->getDeviceDataBox(),
+                        rateCacheField->getDeviceDataBox(),
+                        atomicData->template getAutonomousStartIndexBlockDataBox<false>(),
+                        atomicData->template getAutonomousNumberTransitionsDataBox<false>(),
+                        atomicData->template getAutonomousTransitionDataBox<
                             false,
                             enums::TransitionOrdering::byUpperState>());
             }

@@ -84,11 +84,12 @@ namespace picongpu::particles::atomicPhysics::kernel
                 return;
 
             using FieldEnergyCache = typename T_FieldEnergyUseCacheBox::ValueType;
-            particles::atomicPhysics::localHelperFields::RejectionProbabilityCache_Cell<FieldEnergyCache::numberCells>&
-                rejectionProbabilityCacheCell
-                = rejectionProbabilityCacheCellBox(superCellFieldIdx);
+            using RejectionProbabilityCache
+                = localHelperFields::RejectionProbabilityCache_Cell<FieldEnergyCache::numberCells>;
+            RejectionProbabilityCache& rejectionProbabilityCache = rejectionProbabilityCacheCellBox(superCellFieldIdx);
 
             FieldEnergyCache const& eFieldEnergyUseCache = fieldEnergyUseCacheBox(superCellFieldIdx);
+
             VectorIdx const superCellCellOffset = superCellIdx * picongpu::SuperCellSize::toRT();
             bool sharedResourcesOverSubscribed = false;
 
@@ -98,7 +99,7 @@ namespace picongpu::particles::atomicPhysics::kernel
                  &superCellCellOffset,
                  &eFieldBox,
                  &eFieldEnergyUseCache,
-                 &rejectionProbabilityCacheCell,
+                 &rejectionProbabilityCache,
                  &sharedResourcesOverSubscribed](uint32_t const linearCellIndex)
                 {
                     if(CalculateRejectionProbability::ofCell(
@@ -106,7 +107,7 @@ namespace picongpu::particles::atomicPhysics::kernel
                            superCellCellOffset,
                            eFieldBox,
                            eFieldEnergyUseCache,
-                           rejectionProbabilityCacheCell))
+                           rejectionProbabilityCache))
                         sharedResourcesOverSubscribed = true;
                 });
 
