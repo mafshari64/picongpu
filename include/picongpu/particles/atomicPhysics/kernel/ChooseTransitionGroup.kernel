@@ -164,7 +164,6 @@ namespace picongpu::particles::atomicPhysics::kernel
                             if(r < cumSum)
                             {
                                 // only in between storage
-                                // printf("ID: %lu, %i\n", ion[particleId_], chooseTransitionGroupID);
                                 ion[transitionIndex_] = chooseTransitionGroupID;
                                 break;
                             }

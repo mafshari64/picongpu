@@ -30,8 +30,10 @@
 #include "picongpu/particles/atomicPhysics/param.hpp"
 #include "picongpu/particles/atomicPhysics/stage/BinElectrons.hpp"
 #include "picongpu/particles/atomicPhysics/stage/CalculateStepLength.hpp"
+#include "picongpu/particles/atomicPhysics/stage/CheckForFieldEnergyOverSubscription.hpp"
 #include "picongpu/particles/atomicPhysics/stage/CheckForOverSubscription.hpp"
 #include "picongpu/particles/atomicPhysics/stage/CheckPresence.hpp"
+#include "picongpu/particles/atomicPhysics/stage/ChooseInstantTransition.hpp"
 #include "picongpu/particles/atomicPhysics/stage/ChooseTransition.hpp"
 #include "picongpu/particles/atomicPhysics/stage/ChooseTransitionGroup.hpp"
 #include "picongpu/particles/atomicPhysics/stage/DecelerateElectrons.hpp"
@@ -40,6 +42,7 @@
 #include "picongpu/particles/atomicPhysics/stage/LoadAtomicInputData.hpp"
 #include "picongpu/particles/atomicPhysics/stage/RecordChanges.hpp"
 #include "picongpu/particles/atomicPhysics/stage/RecordSuggestedChanges.hpp"
+#include "picongpu/particles/atomicPhysics/stage/RecordSuggestedFieldEnergyUse.hpp"
 #include "picongpu/particles/atomicPhysics/stage/ResetAcceptedStatus.hpp"
 #include "picongpu/particles/atomicPhysics/stage/ResetRateCache.hpp"
 #include "picongpu/particles/atomicPhysics/stage/ResetSharedResources.hpp"
@@ -47,6 +50,7 @@
 #include "picongpu/particles/atomicPhysics/stage/RollForOverSubscription.hpp"
 #include "picongpu/particles/atomicPhysics/stage/SpawnIonizationElectrons.hpp"
 #include "picongpu/particles/atomicPhysics/stage/UpdateElectricField.hpp"
+#include "picongpu/particles/atomicPhysics/stage/UpdateIonAtomicState.hpp"
 #include "picongpu/particles/atomicPhysics/stage/UpdateTimeRemaining.hpp"
 #include "picongpu/particles/filter/filter.hpp"
 
@@ -77,7 +81,8 @@ namespace picongpu::simulation::stage
             {
                 SubStep,
                 ChooseTransition,
-                RejectOverSubscription
+                RejectOverSubscription,
+                ApplyInstantTransitions
             };
         } // namespace enums
 
@@ -108,7 +113,6 @@ namespace picongpu::simulation::stage
             uint32_t T_numberAtomicPhysicsIonSpecies>
         struct AtomicPhysics
         {
-        private:
             // linearized dataBox of SuperCellField
             template<typename T_Field>
             using LinearizedBox = DataBoxDim1Access<typename T_Field::DataBoxType>;
@@ -132,6 +136,7 @@ namespace picongpu::simulation::stage
             using IPDIonSpecies = MakeSeq_t<AtomicPhysicsIonSpecies, OnlyIPDIonSpecies>;
             //!@}
 
+        private:
             //! debug print to console
             //!@{
 
@@ -230,14 +235,6 @@ namespace picongpu::simulation::stage
             }
             //!@}
 
-            //! set timeRemaining to PIC-time step
-            HINLINE static void setTimeRemaining()
-            {
-                pmacc::DataConnector& dc = pmacc::Environment<>::get().DataConnector();
-                auto& localTimeRemainingField = *dc.get<TimeRemainingField>("TimeRemainingField");
-                localTimeRemainingField.getDeviceBuffer().setValue(picongpu::sim.pic.getDt()); // sim.unit.time()
-            }
-
             //! reset the histogram on device side
             HINLINE static void resetElectronEnergyHistogram()
             {
@@ -249,20 +246,50 @@ namespace picongpu::simulation::stage
             }
 
             //! reset foundUnboundIonField on device side
-            HINLINE static void resetFoundUnboundIon()
+            template<typename T_FoundUnboundIonField>
+            HINLINE static void resetFoundUnboundIon(T_FoundUnboundIonField& foundUnboundIonField)
             {
-                pmacc::DataConnector& dc = pmacc::Environment<>::get().DataConnector();
-                auto& foundUnboundIonField = *dc.get<FoundUnboundField>("FoundUnboundIonField");
                 foundUnboundIonField.getDeviceBuffer().setValue(0._X);
             };
 
-            HINLINE static void resetAcceptStatus(picongpu::MappingDesc const& mappingDesc)
+            //! reset SharedResourcesOverSubscribedField on device side
+            HINLINE static void resetSharedResourceOverSubscribed(picongpu::MappingDesc const& mappingDesc)
+            {
+                picongpu::particles::atomicPhysics::stage::ResetSharedResources<T_numberAtomicPhysicsIonSpecies>{}(
+                    mappingDesc);
+            };
+
+            HINLINE static void resetAcceptedStatus(picongpu::MappingDesc const& mappingDesc)
             {
                 // particle[accepted_] = false, in each macro ion
                 using ForEachIonSpeciesResetAcceptedStatus = pmacc::meta::ForEach<
                     AtomicPhysicsIonSpecies,
                     particles::atomicPhysics::stage::ResetAcceptedStatus<boost::mpl::_1>>;
                 ForEachIonSpeciesResetAcceptedStatus{}(mappingDesc);
+            }
+
+            //! reset each superCell's time step
+            HINLINE static void resetTimeStep(picongpu::MappingDesc const& mappingDesc)
+            {
+                // timeStep = timeRemaining
+                picongpu::particles::atomicPhysics::stage::ResetTimeStepField<T_numberAtomicPhysicsIonSpecies>()(
+                    mappingDesc);
+            }
+
+            //! reset each superCell's rate cache
+            HINLINE static void resetRateCache()
+            {
+                using ForEachIonSpeciesResetRateCache = pmacc::meta::
+                    ForEach<AtomicPhysicsIonSpecies, particles::atomicPhysics::stage::ResetRateCache<boost::mpl::_1>>;
+                ForEachIonSpeciesResetRateCache{}();
+            }
+
+            //! set timeRemaining to PIC-time step
+            HINLINE static void setTimeRemaining()
+            {
+                pmacc::DataConnector& dc = pmacc::Environment<>::get().DataConnector();
+                auto& localTimeRemainingField = *dc.get<TimeRemainingField>("TimeRemainingField");
+                localTimeRemainingField.getDeviceBuffer().setValue(picongpu::sim.pic.getDt()); // sim.unit.time()
             }
 
             HINLINE static void debugForceConstantElectronTemperature([[maybe_unused]] uint32_t const currentStep)
@@ -294,22 +321,6 @@ namespace picongpu::simulation::stage
                     template calculateIPDInput<T_numberAtomicPhysicsIonSpecies, IPDIonSpecies, IPDElectronSpecies>(
                         mappingDesc,
                         currentStep);
-            }
-
-            //! reset each superCell's time step
-            HINLINE static void resetTimeStep(picongpu::MappingDesc const& mappingDesc)
-            {
-                // timeStep = timeRemaining
-                picongpu::particles::atomicPhysics::stage::ResetTimeStepField<T_numberAtomicPhysicsIonSpecies>()(
-                    mappingDesc);
-            }
-
-            //! reset each superCell's rate cache
-            HINLINE static void resetRateCache()
-            {
-                using ForEachIonSpeciesResetRateCache = pmacc::meta::
-                    ForEach<AtomicPhysicsIonSpecies, particles::atomicPhysics::stage::ResetRateCache<boost::mpl::_1>>;
-                ForEachIonSpeciesResetRateCache{}();
             }
 
             //! check which atomic states are actually present in each superCell
@@ -344,9 +355,9 @@ namespace picongpu::simulation::stage
                 ForEachIonSpeciesCalculateStepLength{}(mappingDesc);
             }
 
+            //! randomly roll transition for each not yet accepted macro ion
             HINLINE static void chooseTransition(picongpu::MappingDesc const& mappingDesc, uint32_t const currentStep)
             {
-                // randomly roll transition for each not yet accepted macro ion
                 using ForEachIonSpeciesChooseTransitionGroup = pmacc::meta::ForEach<
                     AtomicPhysicsIonSpecies,
                     particles::atomicPhysics::stage::ChooseTransitionGroup<boost::mpl::_1>>;
@@ -358,18 +369,36 @@ namespace picongpu::simulation::stage
                 ForEachIonSpeciesChooseTransition{}(mappingDesc, currentStep);
             }
 
+            //! randomly roll transition for each macro ion with an instant transition
+            HINLINE static void chooseInstantTransition(
+                picongpu::MappingDesc const& mappingDesc,
+                uint32_t const currentStep)
+            {
+                using ForEachIonSpeciesChooseInstantTransition = pmacc::meta::ForEach<
+                    AtomicPhysicsIonSpecies,
+                    picongpu::particles::atomicPhysics::stage::ChooseInstantTransition<boost::mpl::_1>>;
+                ForEachIonSpeciesChooseInstantTransition{}(mappingDesc, currentStep);
+            }
+
             //! record all shared resources usage by accepted transitions
             HINLINE static void recordSuggestedChanges(picongpu::MappingDesc const& mappingDesc)
             {
-                picongpu::particles::atomicPhysics::stage::ResetSharedResources<T_numberAtomicPhysicsIonSpecies>{}(
-                    mappingDesc);
                 using ForEachIonSpeciesRecordSuggestedChanges = pmacc::meta::ForEach<
                     AtomicPhysicsIonSpecies,
                     particles::atomicPhysics::stage::RecordSuggestedChanges<boost::mpl::_1>>;
                 ForEachIonSpeciesRecordSuggestedChanges{}(mappingDesc);
             }
 
-            // check if an electron histogram bin () is over subscription --> superCellOversubScriptionField
+            //! record all shared resources usage by accepted transitions
+            HINLINE static void recordSuggestedFieldEnergyUse(picongpu::MappingDesc const& mappingDesc)
+            {
+                using ForEachIonSpeciesRecordSuggestedFieldEnergyUse = pmacc::meta::ForEach<
+                    AtomicPhysicsIonSpecies,
+                    particles::atomicPhysics::stage::RecordSuggestedFieldEnergyUse<boost::mpl::_1>>;
+                ForEachIonSpeciesRecordSuggestedFieldEnergyUse{}(mappingDesc);
+            }
+
+            // check if an electron histogram bin or cell's electric field is over subscribed
             template<
                 enums::Loop T_Loop,
                 typename T_SuperCellSharedResourcesOverSubscriptionField,
@@ -379,32 +408,74 @@ namespace picongpu::simulation::stage
                 T_SuperCellSharedResourcesOverSubscriptionField& perSuperCellSharedResourcesOverSubscriptionField,
                 T_DeviceReduce& deviceReduce)
             {
-                DataSpace<picongpu::simDim> const fieldGridLayoutOverSubscription
-                    = perSuperCellSharedResourcesOverSubscriptionField.getGridLayout().sizeWithoutGuardND();
-
+                resetSharedResourceOverSubscribed(mappingDesc);
                 picongpu::particles::atomicPhysics::stage::CheckForOverSubscription<T_numberAtomicPhysicsIonSpecies>{}(
                     mappingDesc);
 
+                DataSpace<picongpu::simDim> const fieldGridLayoutOverSubscription
+                    = perSuperCellSharedResourcesOverSubscriptionField.getGridLayout().sizeWithoutGuardND();
                 auto linearizedOverSubscribedBox = LinearizedBox<OverSubscribedField>(
                     perSuperCellSharedResourcesOverSubscriptionField.getDeviceDataBox(),
                     fieldGridLayoutOverSubscription);
 
-                bool isOverSubscribed = static_cast<bool>(deviceReduce(
+                bool const isOverSubscribed = static_cast<bool>(deviceReduce(
                     pmacc::math::operation::Or(),
                     linearizedOverSubscribedBox,
                     fieldGridLayoutOverSubscription.productOfComponents()));
 
                 // debug only
-                std::string message;
                 if constexpr(debugPrintActive<T_Loop>())
                 {
+                    std::string message;
                     message += "[histogram oversubscribed?]: ";
                     message += (isOverSubscribed ? "true" : "false");
+
+                    printHistogramToConsole<BinSelection::OnlyOverSubscribed, T_Loop>(mappingDesc, message);
+                    printFieldEnergyUseCacheToConsole<T_Loop>(mappingDesc);
+                    printOverSubscriptionFieldToConsole(mappingDesc);
+                    printRejectionProbabilityCacheToConsole(mappingDesc);
                 }
-                printHistogramToConsole<BinSelection::OnlyOverSubscribed, T_Loop>(mappingDesc, message);
-                printFieldEnergyUseCacheToConsole<T_Loop>(mappingDesc);
-                printOverSubscriptionFieldToConsole(mappingDesc);
-                printRejectionProbabilityCacheToConsole(mappingDesc);
+
+                // check whether a least one histogram is oversubscribed
+                return isOverSubscribed;
+            }
+
+            // check if a cell's electric field is over subscribed
+            template<
+                enums::Loop T_Loop,
+                typename T_SuperCellSharedResourcesOverSubscriptionField,
+                typename T_DeviceReduce>
+            HINLINE static bool isElectricFieldOverSubscribed(
+                picongpu::MappingDesc const& mappingDesc,
+                T_SuperCellSharedResourcesOverSubscriptionField& perSuperCellSharedResourcesOverSubscriptionField,
+                T_DeviceReduce& deviceReduce)
+            {
+                resetSharedResourceOverSubscribed(mappingDesc);
+                picongpu::particles::atomicPhysics::stage::CheckForFieldEnergyOverSubscription<
+                    T_numberAtomicPhysicsIonSpecies>{}(mappingDesc);
+
+                DataSpace<picongpu::simDim> const fieldGridLayoutOverSubscription
+                    = perSuperCellSharedResourcesOverSubscriptionField.getGridLayout().sizeWithoutGuardND();
+                auto linearizedOverSubscribedBox = LinearizedBox<OverSubscribedField>(
+                    perSuperCellSharedResourcesOverSubscriptionField.getDeviceDataBox(),
+                    fieldGridLayoutOverSubscription);
+
+                bool const isOverSubscribed = static_cast<bool>(deviceReduce(
+                    pmacc::math::operation::Or(),
+                    linearizedOverSubscribedBox,
+                    fieldGridLayoutOverSubscription.productOfComponents()));
+
+                // debug only
+                if constexpr(debugPrintActive<T_Loop>())
+                {
+                    std::string message = "[histogram oversubscribed?]: ";
+                    message += (isOverSubscribed ? "true" : "false");
+
+                    printHistogramToConsole<BinSelection::OnlyOverSubscribed, T_Loop>(mappingDesc, message);
+                    printFieldEnergyUseCacheToConsole<T_Loop>(mappingDesc);
+                    printOverSubscriptionFieldToConsole(mappingDesc);
+                    printRejectionProbabilityCacheToConsole(mappingDesc);
+                }
 
                 // check whether a least one histogram is oversubscribed
                 return isOverSubscribed;
@@ -423,12 +494,32 @@ namespace picongpu::simulation::stage
             /** update atomic state and accumulate delta energy for delta energy histogram
              *
              * @note may already update the atomic state since the following kernels DecelerateElectrons and
-             * SpawnIonizationElectrons only use the transitionIndex particle attribute */
+             * SpawnIonizationElectrons only use the transitionIndex particle attribute
+             */
             HINLINE static void recordChanges(picongpu::MappingDesc const& mappingDesc)
             {
                 using ForEachIonSpeciesRecordChanges = pmacc::meta::
                     ForEach<AtomicPhysicsIonSpecies, particles::atomicPhysics::stage::RecordChanges<boost::mpl::_1>>;
                 ForEachIonSpeciesRecordChanges{}(mappingDesc);
+            }
+
+            //! update atomic state of all ions having accepted an instant transition
+            HINLINE static void updateIonAtomicState(picongpu::MappingDesc const& mappingDesc)
+            {
+                using ForEachIonSpeciesUpdateAtomicState = pmacc::meta::ForEach<
+                    AtomicPhysicsIonSpecies,
+                    particles::atomicPhysics::stage::UpdateIonAtomicState<boost::mpl::_1>>;
+                ForEachIonSpeciesUpdateAtomicState{}(mappingDesc);
+            }
+
+            HINLINE static void spawnIonizationElectrons(
+                picongpu::MappingDesc const& mappingDesc,
+                uint32_t const currentStep)
+            {
+                using ForEachIonSpeciesSpawnIonizationElectrons = pmacc::meta::ForEach<
+                    AtomicPhysicsIonSpecies,
+                    particles::atomicPhysics::stage::SpawnIonizationElectrons<boost::mpl::_1>>;
+                ForEachIonSpeciesSpawnIonizationElectrons{}(mappingDesc, currentStep);
             }
 
             HINLINE static void updateElectrons(picongpu::MappingDesc const& mappingDesc, uint32_t const currentStep)
@@ -440,10 +531,7 @@ namespace picongpu::simulation::stage
                     particles::atomicPhysics::stage::DecelerateElectrons<boost::mpl::_1>>;
                 ForEachElectronSpeciesDecelerateElectrons{}(mappingDesc);
 
-                using ForEachIonSpeciesSpawnIonizationElectrons = pmacc::meta::ForEach<
-                    AtomicPhysicsIonSpecies,
-                    particles::atomicPhysics::stage::SpawnIonizationElectrons<boost::mpl::_1>>;
-                ForEachIonSpeciesSpawnIonizationElectrons{}(mappingDesc, currentStep);
+                spawnIonizationElectrons(mappingDesc, currentStep);
             }
 
             HINLINE static void updateElectricField(picongpu::MappingDesc const& mappingDesc)
@@ -453,7 +541,7 @@ namespace picongpu::simulation::stage
             }
 
             template<typename T_DeviceReduce>
-            HINLINE static void doIPDIonization(
+            HINLINE static void applyIPDIonization(
                 picongpu::MappingDesc const& mappingDesc,
                 uint32_t const currentStep,
                 T_DeviceReduce& deviceReduce)
@@ -468,7 +556,7 @@ namespace picongpu::simulation::stage
                 bool foundUnbound = true;
                 do
                 {
-                    resetFoundUnboundIon();
+                    resetFoundUnboundIon(foundUnboundIonField);
                     calculateIPDInput(mappingDesc, currentStep);
                     picongpu::atomicPhysics::IPDModel::template applyIPDIonization<AtomicPhysicsIonSpecies>(
                         mappingDesc,
@@ -484,6 +572,63 @@ namespace picongpu::simulation::stage
                         fieldGridLayoutFoundUnbound.productOfComponents()));
                 } // end pressure ionization loop
                 while(foundUnbound);
+            }
+
+            template<typename T_DeviceReduce>
+            HINLINE static void applyInstantTransitions(
+                picongpu::MappingDesc const& mappingDesc,
+                uint32_t const currentStep,
+                T_DeviceReduce& deviceLocalReduce)
+            {
+                pmacc::DataConnector& dc = pmacc::Environment<>::get().DataConnector();
+
+                /// @todo pass instead of duplicating code from applyIPDIonization?, Brian Marre, 2024
+                auto& foundUnboundIonField = *dc.get<FoundUnboundField>("FoundUnboundIonField");
+                DataSpace<picongpu::simDim> const fieldGridLayoutFoundUnbound
+                    = foundUnboundIonField.getGridLayout().sizeWithoutGuardND();
+
+                auto& perSuperCellSharedResourcesOverSubscribedField
+                    = *dc.get<OverSubscribedField>("SharedResourcesOverSubscribedField");
+
+                // instant Transition loop, ends when no ion in state with instant transition anymore
+                bool foundInstantTransitionIon;
+                do
+                {
+                    resetFoundUnboundIon(foundUnboundIonField);
+                    chooseInstantTransition(mappingDesc, currentStep);
+                    recordSuggestedFieldEnergyUse(mappingDesc);
+
+                    bool isFieldOverSubscribed = isElectricFieldOverSubscribed<enums::Loop::ApplyInstantTransitions>(
+                        mappingDesc,
+                        perSuperCellSharedResourcesOverSubscribedField,
+                        deviceLocalReduce);
+
+                    while(isFieldOverSubscribed)
+                    {
+                        // at least one cell's field energy over-subscribed
+                        randomlyRejectTransitionFromOverSubscribedResources(mappingDesc, currentStep);
+                        recordSuggestedFieldEnergyUse(mappingDesc);
+
+                        isFieldOverSubscribed = isElectricFieldOverSubscribed<enums::Loop::RejectOverSubscription>(
+                            mappingDesc,
+                            perSuperCellSharedResourcesOverSubscribedField,
+                            deviceLocalReduce);
+                    } // end remove over subscription loop
+
+                    updateIonAtomicState(mappingDesc);
+                    spawnIonizationElectrons(mappingDesc, currentStep);
+
+                    updateElectricField(mappingDesc);
+
+                    auto linearizedFoundUnboundIonBox = LinearizedBox<FoundUnboundField>(
+                        foundUnboundIonField.getDeviceDataBox(),
+                        fieldGridLayoutFoundUnbound);
+                    foundInstantTransitionIon = static_cast<bool>(deviceLocalReduce(
+                        pmacc::math::operation::Or(),
+                        linearizedFoundUnboundIonBox,
+                        fieldGridLayoutFoundUnbound.productOfComponents()));
+                } // end instant transition loop
+                while(foundInstantTransitionIon);
             }
 
             HINLINE static void updateTimeRemaining(picongpu::MappingDesc const& mappingDesc)
@@ -539,10 +684,12 @@ namespace picongpu::simulation::stage
                 bool isSubSteppingComplete = false;
                 while(!isSubSteppingComplete)
                 {
-                    resetAcceptStatus(mappingDesc);
+                    resetAcceptedStatus(mappingDesc);
                     resetElectronEnergyHistogram();
                     debugForceConstantElectronTemperature(currentStep);
-                    doIPDIonization(mappingDesc, currentStep, deviceLocalReduce);
+                    applyIPDIonization(mappingDesc, currentStep, deviceLocalReduce);
+                    applyInstantTransitions(mappingDesc, currentStep, deviceLocalReduce);
+                    resetAcceptedStatus(mappingDesc);
                     binElectronsToEnergyHistogram(mappingDesc);
                     resetTimeStep(mappingDesc);
                     resetRateCache();
@@ -591,7 +738,7 @@ namespace picongpu::simulation::stage
                 } // end atomicPhysics sub-stepping loop
 
                 // ensure no unbound states are visible to the rest of the loop
-                doIPDIonization(mappingDesc, currentStep, deviceLocalReduce);
+                applyIPDIonization(mappingDesc, currentStep, deviceLocalReduce);
             }
         };
 

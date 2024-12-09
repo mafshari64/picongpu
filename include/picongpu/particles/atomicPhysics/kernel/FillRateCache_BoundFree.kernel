@@ -23,6 +23,7 @@
 #include "picongpu/defines.hpp"
 #include "picongpu/particles/atomicPhysics/CheckSetOfAtomicDataBoxes.hpp"
 #include "picongpu/particles/atomicPhysics/ConvertEnum.hpp"
+#include "picongpu/particles/atomicPhysics/InstantTransitionRateLimit.hpp"
 #include "picongpu/particles/atomicPhysics/KernelIndexation.hpp"
 #include "picongpu/particles/atomicPhysics/MinimumAndMaximumEFieldNormOfSuperCell.hpp"
 #include "picongpu/particles/atomicPhysics/electronDistribution/CachedHistogram.hpp"
@@ -231,9 +232,8 @@ namespace picongpu::particles::atomicPhysics::kernel
                     {
                         uint32_t const transitionCollectionIndex = offset + transitionID;
 
-                        // unit: 1/unit_time
-                        sumRateTransitions
-                            += atomicPhysics::rateCalculation::BoundFreeFieldTransitionRates<T_ADKLaserPolarization>::
+                        auto const transitionRate
+                            = atomicPhysics::rateCalculation::BoundFreeFieldTransitionRates<T_ADKLaserPolarization>::
                                 template maximumRateADKFieldIonization<float_X>(
                                     minEFieldNormSuperCell,
                                     maxEFieldNormSuperCell,
@@ -242,6 +242,23 @@ namespace picongpu::particles::atomicPhysics::kernel
                                     chargeStateDataDataBox,
                                     atomicStateDataDataBox,
                                     boundFreeTransitionDataBox);
+
+                        if(transitionRate > 0._X)
+                        {
+                            // unit: 1/unit_time
+                            sumRateTransitions += transitionRate;
+                        }
+                    }
+
+                    /* all particles with rates above the instant transition limit are processed in the
+                     *  chooseInstantRateTransitions kernel therefore the remaining particles always have a state loss
+                     *  rate limit below or equal to the limit*/
+
+                    constexpr auto instantTransitionRateLimit = InstantTransitionRateLimit::get<float_X>();
+                    bool const stateWithInstantTransitions = (sumRateTransitions > instantTransitionRateLimit);
+                    if(stateWithInstantTransitions)
+                    {
+                        sumRateTransitions = instantTransitionRateLimit;
                     }
 
                     rateCache.template add<s_enums::ChooseTransitionGroup::fieldBoundFreeUpward>(

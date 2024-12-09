@@ -29,6 +29,7 @@
 #include <pmacc/types.hpp>
 
 #include <cstdint>
+#include <limits>
 
 /** @file implements calculation of rates for bound-free field ionization atomic physics transitions
  *
@@ -125,6 +126,8 @@ namespace picongpu::particles::atomicPhysics::rateCalculation
          * @param Z screenedCharge for ionization electron, e
          * @param nEff effective principal quantum number, unitless
          * @param eFieldNorm_AU norm of the E-Field strength, in sim.atomicUnit.eField()
+         *
+         * @returns -1. if the result is larger than the maximum representable value of T_ReturnType, unit: 1/unit_time
          */
         template<typename T_ReturnType>
         HDINLINE static float_X rateFormula(float_X const Z, float_X const nEff, float_X const eFieldNorm_AU)
@@ -138,12 +141,18 @@ namespace picongpu::particles::atomicPhysics::rateCalculation
 
             constexpr T_ReturnType pi = pmacc::math::Pi<T_ReturnType>::value;
 
+            float_64 subTerm = pmacc::math::cPow(dFromADK, 2u)
+                * math::exp(float_64(-2._X * ZCubed / (3._X * nEffCubed * eFieldNorm_AU)));
+
+            // explicitly deal with overflows
+            constexpr auto maxValueT_Return = std::numeric_limits<T_ReturnType>::max();
+            if(subTerm > maxValueT_Return)
+                subTerm = -1.;
+
             // 1/sim.atomicUnit.time()
             T_ReturnType rateADK_AU = eFieldNorm_AU
                 / (static_cast<T_ReturnType>(8.) * pi * static_cast<T_ReturnType>(Z))
-                * static_cast<T_ReturnType>(
-                                          pmacc::math::cPow(dFromADK, 2u)
-                                          * math::exp(float_64(-2._X * ZCubed / (3._X * nEffCubed * eFieldNorm_AU))));
+                * static_cast<T_ReturnType>(subTerm);
 
             // factor from averaging over one laser cycle with LINEAR polarization
             if constexpr(
@@ -175,7 +184,7 @@ namespace picongpu::particles::atomicPhysics::rateCalculation
          * @param atomicStateDataBox access to atomic state property data
          * @param boundBoundTransitionDataBox access to bound-bound transition data
          *
-         * @return unit: 1/picongpu::sim.unit.time()
+         * @returns -1. if the result is larger than the maximum representable value of T_ReturnType, unit: 1/unit_time
          */
         template<
             typename T_ReturnType,
@@ -221,7 +230,7 @@ namespace picongpu::particles::atomicPhysics::rateCalculation
          * @param atomicStateDataBox access to atomic state property data
          * @param boundBoundTransitionDataBox access to bound-bound transition data
          *
-         * @return unit: 1/picongpu::sim.unit.time()
+         * @returns -1. if the result is larger than the maximum representable value of T_ReturnType, unit: 1/unit_time
          */
         template<
             typename T_ReturnType,
