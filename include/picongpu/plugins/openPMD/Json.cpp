@@ -339,27 +339,44 @@ The key 'select' must point to either a single string or an array of strings.)EN
          * careful memory configuration is necessary anyway, so the
          * defaults don't matter.
          */
-        std::string const& defaultValues = R"(
-{
-  "hdf5": {
-    "dataset": {
-      "chunks": "none"
-    }
-  },
-  "adios2": {
-    "engine": {
-      "preferred_flush_target": "buffer",
-      "parameters": {
-        "BufferChunkSize": 2147381248
-      }
-    }
-  }
-}
-        )";
-        std::stringstream json_to_string;
-        json_to_string << config;
-        auto merged = openPMD::json::merge(defaultValues, json_to_string.str());
-        config = nlohmann::json::parse(merged);
+        /*
+         * In openPMD >= 0.16, additionally ignore all attribute metadata
+         * that comes from a rank other than rank 0.
+         * The openPMD plugin of PIConGPU writes attributes synchronously
+         * (since this is required in common configurations of HDF5).
+         * For ADIOS2 however, it's better to write attributes from single
+         * ranks only and avoid metadata duplication across ranks.
+         * This option tells the ADIOS2 backend of openPMD that it can
+         * safely ignore any attribute write if the current MPI rank is
+         * not 0.
+         */
+        std::string const& baseConfigString = R"(
+        {
+          "hdf5": {
+            "dataset": {
+              "chunks": "none"
+            }
+          },
+          "adios2": {
+            "engine": {
+              "preferred_flush_target": "buffer",
+              "parameters": {
+                "BufferChunkSize": 2147381248
+              }
+            }
+          }
+        })";
+        auto baseConfig = nlohmann::json::parse(baseConfigString);
+#    if OPENPMDAPI_VERSION_GE(0, 16, 0)
+        {
+            std::string const& patchConfigString = R"(
+                {"adios2": {"attribute_writing_ranks": 0}})";
+            auto patchConfig = nlohmann::json::parse(patchConfigString);
+            baseConfig.merge_patch(patchConfig);
+        }
+#    endif
+        baseConfig.merge_patch(config);
+        config = std::move(baseConfig);
     }
 } // namespace
 
