@@ -96,7 +96,7 @@ namespace picongpu::particles::atomicPhysics::stage
     struct CheckForFieldEnergyOverSubscription<0u>
     {
         //! call of kernel for every superCell
-        HINLINE void operator()(picongpu::MappingDesc const mappingDesc) const
+        HINLINE void operator()([[maybe_unused]] picongpu::MappingDesc const mappingDesc) const
         {
         }
     };
