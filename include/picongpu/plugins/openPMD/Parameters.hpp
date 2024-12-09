@@ -22,5 +22,6 @@ namespace picongpu::openPMD
         std::string jsonConfigString;
         std::string rangeString;
         std::string jsonRestartParams;
+        std::string writeAccessString;
     };
 } // namespace picongpu::openPMD

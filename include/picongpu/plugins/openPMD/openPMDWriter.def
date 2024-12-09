@@ -92,6 +92,8 @@ namespace picongpu
 
             MappingDesc* cellDescription = nullptr;
 
+            ::openPMD::Access writeAccess = ::openPMD::Access::CREATE;
+
             std::vector<char> fieldBuffer; /* temp. buffer for fields */
 
             Window window; /* window describing the volume to be dumped */

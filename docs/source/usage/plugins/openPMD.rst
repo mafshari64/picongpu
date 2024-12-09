@@ -140,6 +140,14 @@ PIConGPU command line option          description
                                       If your system host memory is small compared to the accelerator memory you should use ``--openPMD.dataPreparationStrategy mappedMemory`` to have
                                       a smaller host memory footprint.
                                       The memory footprint required to dump fields will not be affected by this parameter.
+``--openPMD.writeAccess``             openPMD Access mode for file writing. Default: ``create``. Selecting ``append`` can be useful for checkpoint-restart workflows for avoiding
+                                      truncation of data upon reopening the output Series. Note that the Append mode in openPMD-api is used for adding new Iterations to a data Series
+                                      that (possibly) already exists, but does not specify what happens when an Iteration is written for a second time.
+                                      This situation will typically occur in checkpoint-restart workflows where a handful of iterations is usually recomputed.
+                                      In this situation, the backends will pick a sensible, but unspecified implementation for proceeding. This may include:
+                                      Adding the Iteration in a new IO step, leading to data duplication (ADIOS2 non-file-based encoding);
+                                      replacing the old Iteration with the new one entirely (all file-based encodings); writing new data into the existing Iteration and leaving other
+                                      data unmodified (HDF5 in non-file-based encoding).
 ===================================== ====================================================================================================================================================
 
 .. note::
