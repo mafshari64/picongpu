@@ -219,7 +219,13 @@ namespace pmacc
                         "MPI_THREAD_FUNNELED, MPI_THREAD_SERIALIZED or MPI_THREAD_MULTIPLE.");
                 }
                 // MPI_Init with NULL is allowed since MPI 2.0
-                MPI_CHECK(MPI_Init_thread(nullptr, nullptr, required_level, nullptr));
+                int provided;
+                MPI_CHECK(MPI_Init_thread(nullptr, nullptr, required_level, &provided));
+                if(provided != required_level)
+                {
+                    std::cerr << "[MPI_Init_thread] Provided level '" << provided << "' differs from required level '"
+                              << required_level << "'. Will go on.\n";
+                }
             }
             else
             {
