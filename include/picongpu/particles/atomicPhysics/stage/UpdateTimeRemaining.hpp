@@ -71,7 +71,7 @@ namespace picongpu::particles::atomicPhysics::stage
     template<>
     struct UpdateTimeRemaining<0u>
     {
-        HINLINE void operator()(picongpu::MappingDesc const mappingDesc) const
+        HINLINE void operator()([[maybe_unused]] picongpu::MappingDesc const mappingDesc) const
         {
         }
     };

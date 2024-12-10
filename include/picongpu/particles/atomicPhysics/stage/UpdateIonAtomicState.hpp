@@ -48,7 +48,7 @@ namespace picongpu::particles::atomicPhysics::stage
         using IonSpecies = pmacc::particles::meta::FindByNameOrType_t<VectorAllSpecies, T_IonSpecies>;
 
         //! call of kernel for every superCell
-        HINLINE void operator()(picongpu::MappingDesc const mappingDesc) const
+        HINLINE void operator()([[maybe_unused]] picongpu::MappingDesc const mappingDesc) const
         {
             using AtomicDataType = typename picongpu::traits::GetAtomicDataType<IonSpecies>::type;
 
