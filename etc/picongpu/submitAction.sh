@@ -50,7 +50,6 @@ if [ -f $TBG_projectPath/cmakeFlagsSetup ]
 then
   cp -a $TBG_projectPath/cmakeFlagsSetup input
 fi
-cp -a $TBG_cfgPath/openib.conf tbg
 cp -a $0 tbg
 if [ -f $TBG_cfgPath/cpuNumaStarter.sh ]
 then
