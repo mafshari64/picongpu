@@ -27,20 +27,20 @@
  *
  * Specifically, this TWTStight implementation assumes a special case, where the transverse extent (but not its height
  * wx or its pulse duration) of the TWTS-laser wy is assumed to be infinite. While this special case of the TWTS laser
- * applies to a large range of use cases, the resulting form allows to use different spatial and time coordinates
- * (timeMod, yMod and zMod), which allow long term numerical stability beyond 100000 timesteps at single precision,
+ * applies to a large range of use cases, the resulting form uses different spatial and time coordinates
+ * (timeMod and yMod), which allow long term numerical stability beyond 100000 timesteps at single precision,
  * as well as for mitigating errors of the approximations far from the coordinate origin.
  *
  * We exploit the wavelength-periodicity and the known propagation direction for realizing the laser pulse
- * using relative coordinates (i.e. from a finite coordinate range) only. All these quantities have to be calculated
+ * using reduced coordinates (i.e. a finite coordinate range only). All these quantities have to be calculated
  * in double precision.
  *
- * float_64 const tanAlpha = (1.0 - beta_0 * math::cos(phi)) / (beta_0 * math::sin(phi));
- * float_64 const tanFocalLine = math::tan(PI / 2.0 - phi);
- * float_64 const deltaT = wavelength_SI / sim.si.getSpeedOfLight() * (1.0 + tanAlpha / tanFocalLine);
- * float_64 const deltaY = wavelength_SI * math::cos(phi) + wavelength_SI * math::sin(phi) * math::sin(phi) /
- * math::sin(phi); float_64 const numberOfPeriods = math::floor(time / deltaT); auto const timeMod = float_T(time -
- * numberOfPeriods * deltaT); auto const yMod = float_T(pos.y() - numberOfPeriods * deltaY);
+ * float_64 const deltaT
+ *     = wavelength_SI / sim.si.getSpeedOfLight() / (1.0 - beta_0 * math::cos(precisionCast<float_64>(phi)));
+ * float_64 const deltaY = beta_0 * sim.si.getSpeedOfLight() * deltaT;
+ * float_64 const numberOfPeriods = math::floor(time / deltaT);
+ * auto const timeMod = float_T(time - numberOfPeriods * deltaT);
+ * auto const yMod = float_T(pos.y() - numberOfPeriods * deltaY);
  *
  * Literature:
  * [1] Steiniger et al., "Optical free-electron lasers with Traveling-Wave Thomson-Scattering",
