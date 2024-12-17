@@ -5,7 +5,7 @@ Authors: Hannes Troepgen, Brian Edward Marre
 License: GPLv3+
 """
 
-from .predefinedparticletypeproperties import non_element_particle_type_properties
+from .predefinedparticletypeproperties import PredefinedParticleTypeProperties
 from .interaction import Interaction
 
 from .. import pypicongpu
@@ -17,6 +17,7 @@ import typing
 import typeguard
 import logging
 import re
+import copy
 
 from scipy import constants as consts
 
@@ -25,18 +26,11 @@ from scipy import constants as consts
 class Species(picmistandard.PICMI_Species):
     """PICMI object for a (single) particle species"""
 
-    __non_element_particle_type_properties = non_element_particle_type_properties
-    """
-    mass/charge to use when passed a non-element particle_type
-
-    @attention ONLY set non-element particles here, all other are handled by element
-    """
-
     picongpu_element = pypicongpu.util.build_typesafe_property(typing.Optional[Element])
     """element information of object"""
 
-    __non_element_particle_types: list[str] = __non_element_particle_type_properties.keys()
-    """list of particle types"""
+    __non_element_particle_types: list[str] = copy.copy(PredefinedParticleTypeProperties().get_known_particle_types())
+    """list of all known non element particle types"""
 
     picongpu_fixed_charge = pypicongpu.util.build_typesafe_property(bool)
 
@@ -106,9 +100,10 @@ class Species(picmistandard.PICMI_Species):
         else:
             # set mass & charge
             if self.particle_type in self.__non_element_particle_types:
-                # not element, but known
-                mass_charge_tuple = self.__non_element_particle_type_properties[self.particle_type]
-
+                # not an element, but known particle_type
+                mass_charge_tuple = PredefinedParticleTypeProperties().get_mass_and_charge_of_non_element(
+                    self.particle_type
+                )
                 self.mass = mass_charge_tuple.mass
                 self.charge = mass_charge_tuple.charge
             elif Element.is_element(self.particle_type):
