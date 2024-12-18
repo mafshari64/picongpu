@@ -3,317 +3,319 @@
 """
 This file is part of PIConGPU.
 
-It is supposed to give an estimate for the memory requirement of a PIConGPU
-simulation per device.
+@file implements estimators for the memory requirement of a PIConGPU simulation per device.
 
 Copyright 2018-2024 PIConGPU contributors
-Authors: Marco Garten, Sergei Bastrakov
+Authors: Marco Garten, Sergei Bastrakov, Brian Marre
 License: GPLv3+
 """
 
 import numpy as np
+import numpy.typing as nptype
+
+import pydantic
+import typeguard
 
 
-class MemoryCalculator:
+class MemoryCalculator(pydantic.BaseModel):
     """
     Memory requirement calculation tool for PIConGPU
 
-    Contains calculation for fields, particles, random number generator
-    and the calorimeter plugin. In-situ methods other than the calorimeter
-    so far use up negligible amounts of memory on the device.
+    Contains calculation for fields, particles, random number generator and the calorimeter plugin.
+
+    In-situ methods other than the caloriometer so far use up negligible amounts of memory on the device.
     """
 
-    def __init__(self, n_x, n_y, n_z, precision_bits=32):
+    simulation_dimension: int
+
+    """
+    numerical order of the assignment function of the chosen particle shape
+
+    CIC : order 1
+    TSC : order 2
+    PQS : order 3
+    PCS : order 4
+    (see ``species.param``)
+    """
+    particle_shape_order: int = 2
+
+    # pml border size, in cells, see ``fieldAbsorber.param``:``NUM_CELLS``
+    pml_border_size: nptype.NDArray = np.array(((12, 12), (12, 12), (12, 12)))
+
+    # precision used by PIConGPU, see ``precision.param``
+    precision: int = 32
+
+    # size of super cell in cells, see ``memory.param``
+    super_cell_size: nptype.NDArray = np.array((8, 8, 4))
+
+    # in super cells, see ``memory.param``
+    guard_size: nptype.NDArray = np.array((1, 1, 1))
+
+    class Config:
+        arbitrary_types_allowed = True
+
+    def __init__(self, **keyword_arguments):
+        pydantic.BaseModel.__init__(self, **keyword_arguments)
+        self.checkDimensionsOfArrays()
+        self.shrink_to_simulation_dimension()
+        self.check()
+
+    @staticmethod
+    def get_value_size(precision: int) -> int:
         """
-        Class constructor
+        get size of basic value depending on picongpu precision
 
-        Parameters
-        ----------
-
-        n_x : int
-            number of cells in x direction (per device)
-        n_y : int
-            number of cells in y direction (per device)
-        n_z : int
-            number of cells in z direction (per device)
-        precision_bits : int
-            floating point precision for PIConGPU run
+        @return unit: bytes
         """
-        # local device domain size
-        self.n_x = n_x
-        self.n_y = n_y
-        self.n_z = n_z
 
-        self.precision_bits = precision_bits
-
-        if self.precision_bits == 32:
-            # value size in bytes
-            self.value_size = np.float32().itemsize
-        elif self.precision_bits == 64:
-            # value size in bytes
-            self.value_size = np.float64().itemsize
+        if precision == 32:
+            # bytes
+            return np.float32().itemsize
+        elif precision == 64:
+            # bytes
+            return np.float64().itemsize
         else:
+            raise ValueError("unsupported precision {precision}")
+
+    @staticmethod
+    def get_predefined_attribute_dict(simulation_dimension: int, precision: int) -> dict[str, int]:
+        """get dictionary describing the size of each predefined attribute in bit"""
+
+        # bit
+        value_size = 8 * MemoryCalculator.get_value_size(precision)
+
+        return {
+            "momentum": 3 * value_size,
+            "position": simulation_dimension * value_size,
+            "momentumPrev1": 3 * value_size,
+            "weighting": value_size,
+            "particleId": 64,
+            "weightingDampningFactor": value_size,
+            "probeE": 3 * value_size,
+            "probeB": 3 * value_size,
+            "radiationMask": 1,
+            "transitionRadiationMask": 1,
+            "boundElectrons": value_size,
+            "atomicStateCollectionIndex": 32,
+            "processClass": 8,
+            "transitionIndex": 32,
+            "binIndex": 32,
+            "accepted": 1,
+            "atomicPhysicsIonParticleAttributes": value_size + 32 + 8 + 32 + 32 + 1,
+            "totalCellIdx": simulation_dimension * 32,
+        }
+
+    @typeguard.typechecked
+    def check_cell_extent(self, cell_extent: nptype.NDArray):
+        """check cell extent is consistent with configuration"""
+        if (cell_extent).ndim != 1:
+            raise ValueError("cell_extent must be 1D array")
+
+        if (cell_extent).shape[0] != self.simulation_dimension:
+            raise ValueError("simulation_dimension and dimension of cell_extent must match.")
+        if not (np.all(cell_extent > 0)):
+            raise ValueError("number cells must be > 0 in all dimensions")
+
+        if np.any(cell_extent % self.super_cell_size != 0):
+            raise ValueError(
+                "device number cells must be an integer multiple of the super_cell_size,"
+                " please set super_cell_size to a correct value"
+            )
+
+    def checkDimensionsOfArrays(self):
+        """check all set array have expected dimension"""
+        if (self.pml_border_size).ndim != 2:
+            raise ValueError("pml_border_size must be 2D array")
+        if (self.super_cell_size).ndim != 1:
+            raise ValueError("super_cell_size must be 1D array")
+        if (self.guard_size).ndim != 1:
+            raise ValueError("guard_size must be 1D array")
+
+    def shrink_to_simulation_dimension(self):
+        if self.simulation_dimension == 2:
+            if (self.pml_border_size).shape[0] == 3:
+                self.pml_border_size = self.pml_border_size[:2]
+
+            if (self.super_cell_size).shape[0] == 3:
+                self.super_cell_size = self.super_cell_size[:2]
+
+            if (self.guard_size).shape[0] == 3:
+                self.guard_size = self.guard_size[:2]
+
+    @typeguard.typechecked
+    def check(self):
+        """check configuration is sensible"""
+        if self.simulation_dimension > 3 or self.simulation_dimension < 2:
+            raise ValueError("PIConGPU only supports 2D or 3D simulations.")
+
+        if (self.precision != 32) and (self.precision != 64):
             raise ValueError("PIConGPU only supports either 32 or 64 bits precision.")
 
-    def mem_req_by_fields(
-        self,
-        n_x=None,
-        n_y=None,
-        n_z=None,
-        field_tmp_slots=1,
-        particle_shape_order=2,
-        sim_dim=3,
-        pml_n_x=0,
-        pml_n_y=0,
-        pml_n_z=0,
-    ):
+        if not (np.all(self.super_cell_size > 0)):
+            raise ValueError("super_cell_size must be > 0 in all dimensions")
+
+    @typeguard.typechecked
+    def memory_required_by_cell_fields(
+        self, cell_extent: nptype.NDArray, number_of_temporary_field_slots: int = 1
+    ) -> int:
         """
-        Memory reserved for fields on each device
+        Memory required for cell fields on a specific device(GPU/CPU/...)
 
-        Parameters
-        ----------
+        @attention In PIConGPU different devices may handle different number of cells. This naturally also changes the
+            memory required on each device. This function returns the memory required by cell fields on one single
+            device handling the specified cell extent, not the global memory requirement!
 
-        n_x : int
-            number of cells in x direction (per device)
-        n_y : int
-            number of cells in y direction (per device)
-        n_z : int
-            number of cells in z direction (per device)
-        field_tmp_slots : int
-            number of slots for temporary fields
-            (see PIConGPU ``memory.param`` : ``fieldTmpNumSlots``)
-        particle_shape_order : int
-            numerical order of the assignment function of the chosen
-            particle shape
-            CIC : order 1
-            TSC : order 2
-            PQS : order 3
-            PCS : order 4
-            (see PIConGPU ``species.param``)
-        sim_dim : int
-            simulation dimension (available for PIConGPU: 2 and 3)
-        pml_n_x : int
-            number of PML cells in x direction, combined for both sides
-        pml_n_y : int
-            number of PML cells in y direction, combined for both sides
-        pml_n_z : int
-            number of PML cells in z direction, combined for both sides
+        @param cell_extent device cell extent
+        @param number_of_temporary_field_slots number of temporary field slots, see ``memory.param``
 
-        Returns
-        -------
-
-        req_mem : int
-            required memory {unit: bytes} per device
+        @return unit: bytes
         """
-        if n_x is None:
-            n_x = self.n_x
-        if n_y is None:
-            n_y = self.n_y
-        if n_z is None:
-            n_z = self.n_z
+        self.check_cell_extent(cell_extent)
+
         # PML size cannot exceed the local grid size
-        pml_n_x = min(pml_n_x, n_x)
-        pml_n_y = min(pml_n_y, n_y)
-        pml_n_z = min(pml_n_z, n_z)
+        pml_border_size = np.minimum(self.pml_border_size, cell_extent)
 
-        # guard size in super cells in x, y, z
-        guard_size_supercells = np.array([1, 1, 1])
+        # one scalar each for temp fields, E_x, B_x, E_y, B_y, ...
+        number_fields = 3 * 3 + number_of_temporary_field_slots
 
-        pso = particle_shape_order
-
-        if sim_dim == 2:
-            # super cell size in cells in x, y, z
-            supercell_size = np.array([16, 16, 1])  # \TODO make this more generic
-            local_cells = (n_x + supercell_size[0] * 2 * guard_size_supercells[0]) * (
-                n_y + supercell_size[1] * 2 * guard_size_supercells[1]
-            )
-            local_pml_cells = n_x * n_y - (n_x - pml_n_x) * (n_y - pml_n_y)
-
-            # cells around core-border region due to particle shape
-            double_buffer_cells = (n_x + pso) * (n_y + pso) - n_x * n_y
-        elif sim_dim == 3:
-            # super cell size in cells in x, y, z
-            # \TODO make this more generic
-            supercell_size = np.array([8, 8, 4])
-            local_cells = (
-                (n_x + supercell_size[0] * 2 * guard_size_supercells[0])
-                * (n_y + supercell_size[1] * 2 * guard_size_supercells[1])
-                * (n_z + supercell_size[2] * 2 * guard_size_supercells[2])
-            )
-            local_pml_cells = n_x * n_y * n_z - (n_x - pml_n_x) * (n_y - pml_n_y) * (n_z - pml_n_z)
-
-            # cells around core-border region due to particle shape
-            double_buffer_cells = (n_x + pso) * (n_y + pso) * (n_z + pso) - n_x * n_y * n_z
-        else:
-            raise ValueError("PIConGPU only runs in either 2D or 3D: ", sim_dim, " =/= {2, 3}")
-
-        # number of fields: 3 * 3 = x,y,z for E,B,J
-        num_fields = 3 * 3 + field_tmp_slots
-        # double buffer memory
-        double_buffer_mem = double_buffer_cells * num_fields * self.value_size
         # number of additional PML field components: when enabled,
         # 2 additional scalar fields for each of Ex, Ey, Ez, Bx, By, Bz
-        num_pml_fields = 12
+        number_pml_fields = 12
 
-        req_mem = (
-            self.value_size * num_fields * local_cells
-            + double_buffer_mem
-            + self.value_size * num_pml_fields * local_pml_cells
-        )
-        return req_mem
+        number_local_cells = int(np.prod(cell_extent + self.super_cell_size * 2 * self.guard_size))
+        number_pml_cells = int(np.prod(cell_extent) - np.prod(cell_extent - np.sum(pml_border_size, axis=1)))
+        number_double_buffer_cells = int(np.prod(cell_extent + self.particle_shape_order) - np.prod(cell_extent))
 
-    def mem_req_by_particles(
+        value_size = MemoryCalculator.get_value_size(self.precision)
+
+        double_buffer_memory = number_double_buffer_cells * number_fields * value_size
+        cell_memory = number_local_cells * number_fields * value_size
+        pml_memory = number_pml_cells * number_pml_fields * value_size
+
+        return cell_memory + double_buffer_memory + pml_memory
+
+    @typeguard.typechecked
+    def memory_required_by_particles_of_species(
         self,
-        target_n_x=None,
-        target_n_y=None,
-        target_n_z=None,
-        num_additional_attributes=0,
-        particles_per_cell=2,
-        sim_dim=3,
-    ):
+        particle_filled_cells: nptype.NDArray,
+        species_attribute_list: list[str],
+        custom_attributes_size_dict: dict[str, int] = {},
+        particles_per_cell: int = 2,
+    ) -> int:
         """
-        Memory reserved for all particles of a species on a device.
-        We currently neglect the constant species memory.
+        Memory required for a species' particles per device.
 
-        Parameters
-        ----------
+        @detail species flag/constants do not occupy global device memory, since they are compiled in.
 
-        target_n_x : int
-            number of cells in x direction containing the target
-        target_n_y : int
-            number of cells in y direction containing the target
-        target_n_z : int
-            number of cells in z direction containing the target
-        num_additional_attributes : int
-            number of additional attributes like e.g. ``boundElectrons``
-        particles_per_cell : int
-            number of particles of the species per cell
-        sim_dim : int
-            simulation dimension (available for PIConGPU: 2 and 3)
+        @param particle_filled_cells either number or extent of particle filled cell on device
+        @param species_attribute_list list of species attribute names of species see ``species.param``,
+            for example ["momentum", "position", "weighting"]
+        @param additional_attributes list of size of additional attributes, **in bits**, for example {"custom":32}
+        @param particles_per_cell number of particles of the species per cell
 
-        Returns
-        -------
-
-        req_mem : int
-            required memory {unit: bytes} per device and species
+        @return unit: bytes
         """
 
-        if target_n_x is None:
-            target_n_x = self.n_x
-        if target_n_y is None:
-            target_n_y = self.n_y
-        if target_n_z is None:
-            target_n_z = self.n_z
+        # in bit
+        minimum_particle_attributes = {"multiMask": 8, "cellIndex": 16}
 
-        # memory required by the standard particle attributes
-        standard_attribute_mem = np.array(
-            [
-                3 * self.value_size,  # momentum
-                sim_dim * self.value_size,  # position
-                1,  # multimask (``uint8_t``)
-                2,  # cell index in supercell (``typedef uint16_t lcellId_t``)
-                1 * self.value_size,  # weighting
-            ]
+        predefined_attribute_size_dict = MemoryCalculator.get_predefined_attribute_dict(
+            self.simulation_dimension, self.precision
         )
 
-        # memory per particle for additional attributes {unit: byte}
-        additional_mem = num_additional_attributes * self.value_size
-        # \TODO we assume value_size here - that could be different
         # cells filled by the target species
-        local_cells = target_n_x * target_n_y * target_n_z
+        number_particle_cells = int(np.prod(particle_filled_cells))
 
-        req_mem = local_cells * (np.sum(standard_attribute_mem) + additional_mem) * particles_per_cell
+        # bit
+        mem_per_particle = 0
+
+        for attribute in species_attribute_list:
+            if attribute in predefined_attribute_size_dict:
+                # bit
+                mem_per_particle += predefined_attribute_size_dict[attribute]
+            elif attribute in custom_attributes_size_dict:
+                # bit
+                mem_per_particle += custom_attributes_size_dict[attribute]
+            else:
+                raise ValueError(
+                    "size of species attribute {attribute} unknown, not a known predefined attribute and"
+                    "not specified by user"
+                )
+
+        for attribute in minimum_particle_attributes.keys():
+            # bit
+            mem_per_particle += minimum_particle_attributes[attribute]
+
+        req_mem = int(np.ceil(number_particle_cells * mem_per_particle * particles_per_cell / 8))
+
         return req_mem
 
-    def mem_req_by_rng(self, n_x=None, n_y=None, n_z=None, generator_method="XorMin"):
+    @typeguard.typechecked
+    def memory_required_by_random_number_generator(
+        self, cell_extent: nptype.NDArray, generator_method: str = "XorMin"
+    ) -> int:
         """
-        Memory reserved for the random number generator state on each device.
+        Memory reserved for the random number generator state on device per device.
 
-        Check ``random.param`` for a choice of random number generators.
-        If you find that your required RNG state is large (> 300 MB) please see
-        ``memory.param`` for a possible adjustment of the
-        ``reservedGpuMemorySize``.
+        See ``random.param`` for a choice of random number generators.
 
-        Parameters
-        ----------
-        n_x : int
-            number of cells in x direction (per device)
-        n_y : int
-            number of cells in y direction (per device)
-        n_z : int
-            number of cells in z direction (per device)
-        generator_method : str
-            random number generator method - influences the state size per cell
+        If you find that your required RNG state is large (> 300 MB) please adjust the ``reservedGpuMemorySize``
+        in ``memory.param`` to fit the RNG state and some.
+
+        @param cell_extent cell extent per device
+        @param generator_method random number generator method - influences the state size per cell
             possible options: "XorMin", "MRG32k3aMin", "AlpakaRand"
             - (GPU default: "XorMin")
             - (CPU default: "AlpakaRand")
 
-        Returns
-        -------
-
-        req_mem : int
-            required memory {unit: bytes} per device
+        @return unit: bytes
         """
-        if n_x is None:
-            n_x = self.n_x
-        if n_y is None:
-            n_y = self.n_y
-        if n_z is None:
-            n_z = self.n_z
+        self.check_cell_extent(cell_extent)
 
         if generator_method == "XorMin":
-            state_size_per_cell = 6 * 4  # bytes
+            # bytes
+            state_size_per_cell = 6 * 4
         elif generator_method == "MRG32k3aMin":
-            state_size_per_cell = 6 * 8  # bytes
+            # bytes
+            state_size_per_cell = 6 * 8
         elif generator_method == "AlpakaRand":
-            state_size_per_cell = 7 * 4  # bytes
+            # bytes
+            state_size_per_cell = 7 * 4
         else:
             raise ValueError(
-                "{} is not an available RNG for PIConGPU.".format(generator_method),
-                "Please choose one of the following: ",
-                "'XorMin', 'MRG32k3aMin', 'AlpakaRand'",
+                f"{generator_method} is not a known RNG for PIConGPU. Please choose one of the following: "
+                "'XorMin', 'MRG32k3aMin', 'AlpakaRand'"
             )
 
         # CORE + BORDER region of the device, GUARD currently has no RNG state
-        local_cells = n_x * n_y * n_z
+        number_local_cells = int(np.prod(cell_extent))
 
-        req_mem = state_size_per_cell * local_cells
+        req_mem = state_size_per_cell * number_local_cells
         return req_mem
 
-    def mem_req_by_calorimeter(self, n_energy, n_yaw, n_pitch, value_size=None):
+    @typeguard.typechecked
+    def memory_required_by_calorimeter(self, number_energy_bins: int, number_yaw_bins: int, number_pitch_bins: int):
         """
         Memory required by the particle calorimeter plugin.
-        Each of the (``n_energy`` x ``n_yaw`` x ``n_pitch``) bins requires
-        a value (32/64 bits). The whole calorimeter is represented twice on
-        each device, once for particles in the simulation and once
+
+        Each of the (``n_energy`` x ``n_yaw`` x ``n_pitch``) bins requires a value (32/64 bits).
+        The whole calorimeter is represented twice on each device, once for particles in the simulation and once
         for the particles that leave the box.
 
-        Parameters
-        ----------
+        @param number_energy_bins number of bins on the energy axis
+        @param number_yaw_bins number of bins for the yaw angle
+        @param number_pitch_bins number of bins for the pitch angle
 
-        n_energy : int
-            number of bins on the energy axis
-        n_yaw : int
-            number of bins for the yaw angle
-        n_pitch : int
-            number of bins for the pitch angle
-        value_size : int
-            value size in particle calorimeter {unit: byte} (default: 4)
-
-        Returns
-        -------
-
-        req_mem : int
-            required memory {unit: bytes} per device
+        @return unit: bytes
         """
-        if value_size is None:
-            value_size = self.value_size
+        # bytes
+        req_mem_per_bin = self.get_value_size(self.precision)
 
-        req_mem_per_bin = value_size
-        num_bins = n_energy * n_yaw * n_pitch
+        total_number_bins = number_energy_bins * number_yaw_bins * number_pitch_bins
+
         # one calorimeter instance for particles in the box
         # another calorimeter instance for particles leaving the box
         # makes a factor of 2 for the required memory
-        req_mem = req_mem_per_bin * num_bins * 2
+        req_mem = req_mem_per_bin * total_number_bins * 2
 
         return req_mem
