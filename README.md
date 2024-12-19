@@ -187,15 +187,20 @@ Active Team
 ### Scientific Supervision
 
 - Dr. Michael Bussmann
+- Dr. Thomas Kluge
+- Dr. Richard Pausch
+- Dr. Klaus Steiniger
 
 ### Maintainers* and core developers
 
-- Dr. Sergei Bastrakov*
 - Finn-Ole Carstens
 - Dr. Alexander Debus
 - Dr. Marco Garten*
 - Dr. Axel Huebl*
+- Dr. Jeffrey Kelling*
+- Dr. Julian Lenz* 
 - Brian Edward Marre
+- Tapish Narwal*
 - Pawel Ordyna 
 - Dr. Richard Pausch*
 - Franz Poeschel
@@ -204,13 +209,13 @@ Active Team
 
 ### Former Members, Contributions and Thanks
 
-The PIConGPU Team expresses its gratitude to:
+The PIConGPU team expresses its gratitude to:
 
-Florian Berninger, Heiko Burau, Fabia Dietrich, Robert Dietrich, Carlchristian Eckert,
-Simeon Ehrig, Wen Fu, Ph.D., Alexander Grund, Sebastian Hahn, Anton Helm, Wolfgang Hoehnig,
+Dr. Sergei Bastrakov, Florian Berninger, Heiko Burau, Fabia Dietrich, Robert Dietrich, Carlchristian Eckert,
+Simeon Ehrig, Ph.D. Wen Fu, Alexander Grund, Sebastian Hahn, Anton Helm, Wolfgang Hoehnig,
 Dr.-Ing. Guido Juckeland, Jeffrey Kelling, Maximilian Knespel, Dr. Remi Lehe,
 Felix Schmitt, Frank Winkler, Benjamin Schneider, Joseph Schuchart, Conrad Schumann,
-Stefan Tietze, Marija Vranic, Ph.D., Benjamin Worpitz, Erik Zenker,
+Stefan Tietze, Ph.D. Marija Vranic, Benjamin Worpitz, Erik Zenker,
 Sophie Rudat, Sebastian Starke, Alexander Matthes, Kseniia Bastrakova, 
 Bernhard Manfred Gruber, Jakob Trojok, Anton Lebedev, Nils Prinz,
 Felix Meyer, Lennert Sprenger, Manhui Wang, Maxence Thevenet, Ilja Goethel,
