@@ -195,6 +195,86 @@ class MemoryCalculator(pydantic.BaseModel):
         return cell_memory + double_buffer_memory + pml_memory
 
     @typeguard.typechecked
+    def memory_required_by_super_cell_fields(
+        self,
+        super_cell_extent: nptype.NDArray,
+        number_atomic_states_by_atomic_physics_ion_species: list[int],
+        number_electron_histogram_bins: int,
+        IPDactive: bool = True,
+    ) -> int:
+        """
+        Memory required for super cell fields on a specific device(GPU/CPU/...)
+
+        @attention In PIConGPU different devices may handle different number of super cells. This naturally also changes
+            the memory required on each device. This function returns the memory required by cell fields on one single
+            device handling the specified cell extent, not the global memory requirement!
+
+        @param super_cell_extent device super_cell extent
+        @param number_atomic_states_by_atomic_physics_ion_species number of atomic states of each atomic physics ion
+            species
+        @param number_electron_histogram_bins number of bins in the AtomicPhysics(FLYonPIC) electron histograms
+        @param IPDactive is IPD active, see ``IPDModel.param``
+
+        @return unit: bytes
+        """
+        self.check_cell_extent(super_cell_extent * self.super_cell_size)
+
+        number_cells_per_supercell = np.prod(self.super_cell_size)
+        value_size = MemoryCalculator.get_value_size(self.precision)
+
+        # bytes
+        size_rate_caches = 0
+        for number_states in number_atomic_states_by_atomic_physics_ion_species:
+            size_rate_caches += value_size * number_states * 5 + number_states * 4
+
+        size_rejection_probability_cache_cell = value_size * number_cells_per_supercell
+        size_rejection_probability_cache_bin = value_size * number_electron_histogram_bins
+        size_field_energy_use_cache = value_size * number_cells_per_supercell
+
+        size_electron_histogram = 3 * value_size * number_electron_histogram_bins + value_size
+        size_shared_ressources_over_subscribed = 4
+        size_shared_found_unbound = 4
+        size_time_remaining = value_size
+        size_time_step = value_size
+
+        ipd_sum_weight_all = value_size
+        ipd_sum_weight_electrons = value_size
+        ipd_sum_temperature_functional = value_size
+        ipd_sum_charge_number_ions = value_size
+        ipd_sum_charge_number_ions_squared = value_size
+        ipd_debye_length = value_size
+        ipd_zstar = value_size
+        ipd_temperature_energy = value_size
+
+        per_super_cell_memory = (
+            size_rate_caches
+            + size_rejection_probability_cache_cell
+            + size_rejection_probability_cache_bin
+            + size_field_energy_use_cache
+            + size_electron_histogram
+            + size_shared_ressources_over_subscribed
+            + size_shared_found_unbound
+            + size_time_remaining
+            + size_time_step
+        )
+
+        if IPDactive:
+            per_super_cell_memory += (
+                ipd_sum_weight_all
+                + ipd_sum_weight_electrons
+                + ipd_sum_temperature_functional
+                + ipd_sum_charge_number_ions
+                + ipd_sum_charge_number_ions_squared
+                + ipd_debye_length
+                + ipd_zstar
+                + ipd_temperature_energy
+            )
+
+        number_local_super_cells = int(np.prod(super_cell_extent))
+
+        return number_local_super_cells * per_super_cell_memory
+
+    @typeguard.typechecked
     def memory_required_by_particles_of_species(
         self,
         particle_filled_cells: nptype.NDArray,
