@@ -56,9 +56,9 @@ class MemoryCalculator(pydantic.BaseModel):
 
     def __init__(self, **keyword_arguments):
         pydantic.BaseModel.__init__(self, **keyword_arguments)
-        self.checkDimensionsOfArrays()
-        self.shrink_to_simulation_dimension()
-        self.check()
+        self._check_dimensions_of_arrays()
+        self._shrink_to_simulation_dimension()
+        self._check()
 
     @staticmethod
     def get_value_size(precision: int) -> int:
@@ -106,7 +106,7 @@ class MemoryCalculator(pydantic.BaseModel):
         }
 
     @typeguard.typechecked
-    def check_cell_extent(self, cell_extent: nptype.NDArray):
+    def _check_cell_extent(self, cell_extent: nptype.NDArray):
         """check cell extent is consistent with configuration"""
         if (cell_extent).ndim != 1:
             raise ValueError("cell_extent must be 1D array")
@@ -122,7 +122,7 @@ class MemoryCalculator(pydantic.BaseModel):
                 " please set super_cell_size to a correct value"
             )
 
-    def checkDimensionsOfArrays(self):
+    def _check_dimensions_of_arrays(self):
         """check all set array have expected dimension"""
         if (self.pml_border_size).ndim != 2:
             raise ValueError("pml_border_size must be 2D array")
@@ -131,7 +131,7 @@ class MemoryCalculator(pydantic.BaseModel):
         if (self.guard_size).ndim != 1:
             raise ValueError("guard_size must be 1D array")
 
-    def shrink_to_simulation_dimension(self):
+    def _shrink_to_simulation_dimension(self):
         if self.simulation_dimension == 2:
             if (self.pml_border_size).shape[0] == 3:
                 self.pml_border_size = self.pml_border_size[:2]
@@ -143,7 +143,7 @@ class MemoryCalculator(pydantic.BaseModel):
                 self.guard_size = self.guard_size[:2]
 
     @typeguard.typechecked
-    def check(self):
+    def _check(self):
         """check configuration is sensible"""
         if self.simulation_dimension > 3 or self.simulation_dimension < 2:
             raise ValueError("PIConGPU only supports 2D or 3D simulations.")
@@ -170,12 +170,12 @@ class MemoryCalculator(pydantic.BaseModel):
 
         @return unit: bytes
         """
-        self.check_cell_extent(cell_extent)
+        self._check_cell_extent(cell_extent)
 
         # PML size cannot exceed the local grid size
         pml_border_size = np.minimum(self.pml_border_size, cell_extent)
 
-        # one scalar each for temp fields, E_x, B_x, E_y, B_y, ...
+        # one scalar each temporary field and E, B, J field component
         number_fields = 3 * 3 + number_of_temporary_field_slots
 
         # number of additional PML field components: when enabled,
@@ -200,7 +200,7 @@ class MemoryCalculator(pydantic.BaseModel):
         super_cell_extent: nptype.NDArray,
         number_atomic_states_by_atomic_physics_ion_species: list[int],
         number_electron_histogram_bins: int,
-        IPDactive: bool = True,
+        ipd_active: bool = True,
     ) -> int:
         """
         Memory required for super cell fields on a specific device(GPU/CPU/...)
@@ -217,7 +217,7 @@ class MemoryCalculator(pydantic.BaseModel):
 
         @return unit: bytes
         """
-        self.check_cell_extent(super_cell_extent * self.super_cell_size)
+        self._check_cell_extent(super_cell_extent * self.super_cell_size)
 
         number_cells_per_supercell = np.prod(self.super_cell_size)
         value_size = MemoryCalculator.get_value_size(self.precision)
@@ -258,7 +258,7 @@ class MemoryCalculator(pydantic.BaseModel):
             + size_time_step
         )
 
-        if IPDactive:
+        if ipd_active:
             per_super_cell_memory += (
                 ipd_sum_weight_all
                 + ipd_sum_weight_electrons
@@ -350,7 +350,7 @@ class MemoryCalculator(pydantic.BaseModel):
 
         @return unit: bytes
         """
-        self.check_cell_extent(cell_extent)
+        self._check_cell_extent(cell_extent)
 
         if generator_method == "XorMin":
             # bytes

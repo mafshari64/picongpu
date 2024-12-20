@@ -48,20 +48,20 @@ global_gpu_extent = np.array((2, 2))[:simulation_dimension]
 super_cell_size = np.array((16, 16, 1))
 
 # how many cells each gpu in this row of this dimension handles
-#   for example global_domain_division = [np.array((64,192)), np.array((960, 320))]
-
-#   for simplicity's sake we will distribute cells evenly, but this is not required
+#   for example grid_distribution = [np.array((64,192)), np.array((960, 320))]
+#   here we distribute cells evenly, but this is not required
 if np.any(global_cell_extent % global_gpu_extent != 0):
     raise ValueError("global cell extent must be divisble by the global gpu extent")
-global_domain_division = []
+grid_distribution = []
 for dim in range(simulation_dimension):
     row_division = np.full(global_gpu_extent[dim], int(global_cell_extent[dim] / global_gpu_extent[dim]), dtype=np.int_)
-    global_domain_division.append(row_division)
+    grid_distribution.append(row_division)
 
-print(f"global domain division: {global_domain_division}")
+print(f"grid distribution: {grid_distribution}")
 
-# get cell extent of each GPU, <extent of the gpu domain>[simulation dimension, multi dimensional gpu index]
-gpu_cell_extent = np.meshgrid(*global_domain_division)
+# get cell extent of each GPU: list of np.array[np.int_], one per simulation dimension, with each array entry being the
+#   cell extent of the corresponding gpu in the simulation, indexation by [simulation_dimension, gpu_index[0], gpu_index[1], ...]
+gpu_cell_extent = np.meshgrid(*grid_distribution)
 
 # extent of cells filled with particles for each gpu
 #   init
@@ -72,7 +72,7 @@ for gpu_index in np.ndindex(tuple(global_gpu_extent)):
     # calculate offset of gpu in cells
     gpu_cell_offset = np.empty(simulation_dimension)
     for dim in range(simulation_dimension):
-        gpu_cell_offset[dim] = np.sum(global_domain_division[dim][: gpu_index[dim]])
+        gpu_cell_offset[dim] = np.sum(grid_distribution[dim][: gpu_index[dim]])
 
     # figure out the extent of the particle filled cells of the gpu
     #   for our example figure out how many cells in y-direction belong to the foil + pre-plasma
@@ -106,7 +106,7 @@ for gpu_index in np.ndindex(tuple(global_gpu_extent)):
                 )
 
     else:
-        # fully in side target
+        # fully inside target
         for dim in range(simulation_dimension):
             gpu_particle_cell_extent[dim][gpu_index] = gpu_cell_extent[dim][gpu_index]
 
