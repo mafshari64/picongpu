@@ -8,118 +8,79 @@ License: GPLv3+
 import collections
 import particle
 
+import pydantic
+import typeguard
+
 from scipy import constants as consts
 
-_PropertyTuple: collections.namedtuple = collections.namedtuple("_PropertyTuple", ["mass", "charge"])
+PropertyTuple: collections.namedtuple = collections.namedtuple("_PropertyTuple", ["mass", "charge"])
 
-# based on 2024 Particle data Group values, @todo read automatically from somewhere, BrianMarre
-_quarks = {
-    "up": _PropertyTuple(
-        mass=particle.Particle.findall("u")[0].mass * 1e6 * consts.elementary_charge / consts.speed_of_light**2,
-        charge=particle.Particle.findall("u")[0].charge * consts.elementary_charge,
-    ),
-    "charm": _PropertyTuple(
-        mass=particle.Particle.findall("c")[0].mass * 1e6 * consts.elementary_charge / consts.speed_of_light**2,
-        charge=particle.Particle.findall("c")[0].charge * consts.elementary_charge,
-    ),
-    "top": _PropertyTuple(
-        mass=particle.Particle.findall("t")[0].mass * 1e6 * consts.elementary_charge / consts.speed_of_light**2,
-        charge=particle.Particle.findall("t")[0].charge * consts.elementary_charge,
-    ),
-    "down": _PropertyTuple(
-        mass=particle.Particle.findall("d")[0].mass * 1e6 * consts.elementary_charge / consts.speed_of_light**2,
-        charge=particle.Particle.findall("d")[0].charge * consts.elementary_charge,
-    ),
-    "strange": _PropertyTuple(
-        mass=particle.Particle.findall("s")[0].mass * 1e6 * consts.elementary_charge / consts.speed_of_light**2,
-        charge=particle.Particle.findall("s")[0].charge * consts.elementary_charge,
-    ),
-    "bottom": _PropertyTuple(
-        mass=particle.Particle.findall("b")[0].mass * 1e6 * consts.elementary_charge / consts.speed_of_light**2,
-        charge=particle.Particle.findall("b")[0].charge * consts.elementary_charge,
-    ),
-    "anti-up": _PropertyTuple(
-        mass=particle.Particle.findall("u~")[0].mass * 1e6 * consts.elementary_charge / consts.speed_of_light**2,
-        charge=particle.Particle.findall("u~")[0].charge * consts.elementary_charge,
-    ),
-    "anti-charm": _PropertyTuple(
-        mass=particle.Particle.findall("c~")[0].mass * 1e6 * consts.elementary_charge / consts.speed_of_light**2,
-        charge=particle.Particle.findall("c~")[0].charge * consts.elementary_charge,
-    ),
-    "anti-top": _PropertyTuple(
-        mass=particle.Particle.findall("t~")[0].mass * 1e6 * consts.elementary_charge / consts.speed_of_light**2,
-        charge=particle.Particle.findall("t~")[0].charge * consts.elementary_charge,
-    ),
-    "anti-down": _PropertyTuple(
-        mass=particle.Particle.findall("d~")[0].mass * 1e6 * consts.elementary_charge / consts.speed_of_light**2,
-        charge=particle.Particle.findall("d~")[0].charge * consts.elementary_charge,
-    ),
-    "anti-strange": _PropertyTuple(
-        mass=particle.Particle.findall("s~")[0].mass * 1e6 * consts.elementary_charge / consts.speed_of_light**2,
-        charge=particle.Particle.findall("s~")[0].charge * consts.elementary_charge,
-    ),
-    "anti-bottom": _PropertyTuple(
-        mass=particle.Particle.findall("b~")[0].mass * 1e6 * consts.elementary_charge / consts.speed_of_light**2,
-        charge=particle.Particle.findall("b~")[0].charge * consts.elementary_charge,
-    ),
-}
 
-_leptons = {
-    "electron": _PropertyTuple(mass=consts.electron_mass, charge=-consts.elementary_charge),
-    "muon": _PropertyTuple(
-        mass=particle.Particle.findall("mu-")[0].mass * 1e6 * consts.elementary_charge / consts.speed_of_light**2,
-        charge=particle.Particle.findall("mu-")[0].charge * consts.elementary_charge,
-    ),
-    "tau": _PropertyTuple(
-        mass=particle.Particle.findall("tau-")[0].mass * 1e6 * consts.elementary_charge / consts.speed_of_light**2,
-        charge=particle.Particle.findall("tau-")[0].charge * consts.elementary_charge,
-    ),
-    "positron": _PropertyTuple(mass=consts.electron_mass, charge=consts.elementary_charge),
-    "anti-muon": _PropertyTuple(
-        mass=particle.Particle.findall("mu+")[0].mass * 1e6 * consts.elementary_charge / consts.speed_of_light**2,
-        charge=particle.Particle.findall("mu+")[0].charge * consts.elementary_charge,
-    ),
-    "anti-tau": _PropertyTuple(
-        mass=particle.Particle.findall("tau+")[0].mass * 1e6 * consts.elementary_charge / consts.speed_of_light**2,
-        charge=particle.Particle.findall("tau+")[0].charge * consts.elementary_charge,
-    ),
-}
+class PredefinedParticleTypeProperties(pydantic.BaseModel):
+    _particle_type_to_pdgid: dict[str, int] = {
+        "down": 1,
+        "up": 2,
+        "strange": 3,
+        "charm": 4,
+        "bottom": 5,
+        "top": 6,
+        "anti-down": -1,
+        "anti-up": -2,
+        "anti-charm": -4,
+        "anti-top": -6,
+        "anti-strange": -3,
+        "anti-bottom": -5,
+        "electron": 11,
+        "positron": -11,
+        "muon": 13,
+        "anti-muon": -13,
+        "tau": 15,
+        "anti-tau": -15,
+        "gluon": 21,
+        "photon": 22,
+        "z-boson": 23,
+        "w-plus-boson": 24,
+        "w-minus-boson": -24,
+        "higgs": 25,
+    }
 
-_nucleons = {
-    "proton": _PropertyTuple(mass=consts.proton_mass, charge=consts.elementary_charge),
-    "anti-proton": _PropertyTuple(mass=consts.proton_mass, charge=-consts.elementary_charge),
-    "neutron": _PropertyTuple(mass=consts.neutron_mass, charge=None),
-    "anti-neutron": _PropertyTuple(mass=consts.neutron_mass, charge=None),
-}
+    _directDefinitions: dict[str, PropertyTuple] = {
+        "proton": PropertyTuple(mass=consts.proton_mass, charge=consts.elementary_charge),
+        "anti-proton": PropertyTuple(mass=consts.proton_mass, charge=-consts.elementary_charge),
+        "neutron": PropertyTuple(mass=consts.neutron_mass, charge=None),
+        "anti-neutron": PropertyTuple(mass=consts.neutron_mass, charge=None),
+    }
 
-_neutrinos = {
-    "electron-neutrino": _PropertyTuple(mass=0.0, charge=0.0),
-    "muon-neutrino": _PropertyTuple(mass=0.0, charge=0.0),
-    "tau-neutrino": _PropertyTuple(mass=0.0, charge=0.0),
-    "anti-electron-neutrino": _PropertyTuple(mass=0.0, charge=0.0),
-    "anti-muon-neutrino": _PropertyTuple(mass=0.0, charge=0.0),
-    "anti-tau-neutrino": _PropertyTuple(mass=0.0, charge=0.0),
-}
+    def get_known_particle_types(self) -> list[str]:
+        return list(self._directDefinitions.keys()) + list(self._particle_type_to_pdgid.keys())
 
-_gauge_bosons = {
-    "photon": _PropertyTuple(mass=None, charge=0.0),
-    "gluon": _PropertyTuple(mass=None, charge=0.0),
-    "w-plus-boson": _PropertyTuple(
-        mass=particle.Particle.findall("W+")[0].mass * 1e9 * consts.elementary_charge / consts.speed_of_light**2,
-        charge=particle.Particle.findall("W+")[0].charge * consts.elementary_charge,
-    ),
-    "w-minus-boson": _PropertyTuple(
-        mass=particle.Particle.findall("W-")[0].mass * 1e9 * consts.elementary_charge / consts.speed_of_light**2,
-        charge=particle.Particle.findall("W-")[0].charge * consts.elementary_charge,
-    ),
-    "z-boson": _PropertyTuple(
-        mass=particle.Particle.findall("Z")[0].mass * 1e9 * consts.elementary_charge / consts.speed_of_light**2,
-        charge=particle.Particle.findall("Z")[0].charge * consts.elementary_charge,
-    ),
-    "higgs": _PropertyTuple(
-        mass=particle.Particle.findall("H")[0].mass * 1e9 * consts.elementary_charge / consts.speed_of_light**2,
-        charge=particle.Particle.findall("H")[0].charge * consts.elementary_charge,
-    ),
-}
+    @typeguard.typechecked
+    def get_mass_and_charge_of_non_element(self, particle_type: str) -> PropertyTuple:
+        """mass and charge of physical particle of specified non element particle type
 
-non_element_particle_type_properties = {**_quarks, **_leptons, **_neutrinos, **_nucleons, **_gauge_bosons}
+        @param particle_type as defined in the openPMD upcoming-2.0.0 extension SpeciesType
+        @detail based on Particle data Group(pdg) values of installed instance of python package particle
+
+        @returns None if particle_type is unknown, units: (kg, C)
+        """
+
+        if particle_type in self._particle_type_to_pdgid.keys():
+            data = particle.Particle.from_pdgid(self._particle_type_to_pdgid[particle_type])
+            propertyTuple = PropertyTuple(
+                mass=data.mass * 1e6 * consts.elementary_charge / consts.speed_of_light**2,
+                charge=data.charge * consts.elementary_charge,
+            )
+
+        elif particle_type in self._directDefinitions.keys():
+            propertyTuple = self._directDefinitions[particle_type]
+
+        else:
+            return None
+
+        # replace charge 0 or mass 0 with None
+        if propertyTuple.mass == 0.0:
+            propertyTuple = PropertyTuple(mass=None, charge=propertyTuple.charge)
+        if propertyTuple.charge == 0.0:
+            propertyTuple = PropertyTuple(mass=propertyTuple.mass, charge=None)
+
+        return propertyTuple
