@@ -79,30 +79,33 @@ class MemoryCalculator(pydantic.BaseModel):
 
     @staticmethod
     def get_predefined_attribute_dict(simulation_dimension: int, precision: int) -> dict[str, int]:
-        """get dictionary describing the size of each predefined attribute in bit"""
+        """get dictionary describing the size of each predefined attribute in bytes"""
 
-        # bit
-        value_size = 8 * MemoryCalculator.get_value_size(precision)
+        size_float_X = MemoryCalculator.get_value_size(precision)
+        size_uint8 = np.uint8().itemsize
+        size_uint32 = np.uint32().itemsize
+        # we assume 1 byte per bool
+        size_bool = 1
 
         return {
-            "momentum": 3 * value_size,
-            "position": simulation_dimension * value_size,
-            "momentumPrev1": 3 * value_size,
-            "weighting": value_size,
-            "particleId": 64,
-            "weightingDampningFactor": value_size,
-            "probeE": 3 * value_size,
-            "probeB": 3 * value_size,
-            "radiationMask": 1,
-            "transitionRadiationMask": 1,
-            "boundElectrons": value_size,
-            "atomicStateCollectionIndex": 32,
-            "processClass": 8,
-            "transitionIndex": 32,
-            "binIndex": 32,
-            "accepted": 1,
-            "atomicPhysicsIonParticleAttributes": value_size + 32 + 8 + 32 + 32 + 1,
-            "totalCellIdx": simulation_dimension * 32,
+            "momentum": 3 * size_float_X,
+            "position": simulation_dimension * size_float_X,
+            "momentumPrev1": 3 * size_float_X,
+            "weighting": size_float_X,
+            "particleId": np.uint64().itemsize,
+            "weightingDampningFactor": size_float_X,
+            "probeE": 3 * size_float_X,
+            "probeB": 3 * size_float_X,
+            "radiationMask": size_bool,
+            "transitionRadiationMask": size_bool,
+            "boundElectrons": size_float_X,
+            "atomicStateCollectionIndex": size_uint32,
+            "processClass": size_uint8,
+            "transitionIndex": size_uint32,
+            "binIndex": size_uint32,
+            "accepted": size_bool,
+            "atomicPhysicsIonParticleAttributes": size_float_X + 3 * size_uint32 + size_uint8 + size_bool,
+            "totalCellIdx": simulation_dimension * size_uint32,
         }
 
     @typeguard.typechecked
@@ -164,6 +167,7 @@ class MemoryCalculator(pydantic.BaseModel):
         @attention In PIConGPU different devices may handle different number of cells. This naturally also changes the
             memory required on each device. This function returns the memory required by cell fields on one single
             device handling the specified cell extent, not the global memory requirement!
+        @attention this method requires the actual extent of cells on device, not just the number of cells!
 
         @param cell_extent device cell extent
         @param number_of_temporary_field_slots number of temporary field slots, see ``memory.param``
@@ -173,24 +177,24 @@ class MemoryCalculator(pydantic.BaseModel):
         self._check_cell_extent(cell_extent)
 
         # PML size cannot exceed the local grid size
-        pml_border_size = np.minimum(self.pml_border_size, cell_extent)
+        pml_border_size = np.minimum(self.pml_border_size, cell_extent[:, np.newaxis])
 
         # one scalar each temporary field and E, B, J field component
         number_fields = 3 * 3 + number_of_temporary_field_slots
 
         # number of additional PML field components: when enabled,
-        # 2 additional scalar fields for each of Ex, Ey, Ez, Bx, By, Bz
-        number_pml_fields = 12
+        # 2 additional scalar fields for each of E and B field component
+        number_pml_fields = 2 * 2 * 3
 
         number_local_cells = int(np.prod(cell_extent + self.super_cell_size * 2 * self.guard_size))
         number_pml_cells = int(np.prod(cell_extent) - np.prod(cell_extent - np.sum(pml_border_size, axis=1)))
         number_double_buffer_cells = int(np.prod(cell_extent + self.particle_shape_order) - np.prod(cell_extent))
 
-        value_size = MemoryCalculator.get_value_size(self.precision)
+        size_float_X = MemoryCalculator.get_value_size(self.precision)
 
-        double_buffer_memory = number_double_buffer_cells * number_fields * value_size
-        cell_memory = number_local_cells * number_fields * value_size
-        pml_memory = number_pml_cells * number_pml_fields * value_size
+        double_buffer_memory = number_double_buffer_cells * number_fields * size_float_X
+        cell_memory = number_local_cells * number_fields * size_float_X
+        pml_memory = number_pml_cells * number_pml_fields * size_float_X
 
         return cell_memory + double_buffer_memory + pml_memory
 
@@ -220,31 +224,31 @@ class MemoryCalculator(pydantic.BaseModel):
         self._check_cell_extent(super_cell_extent * self.super_cell_size)
 
         number_cells_per_supercell = np.prod(self.super_cell_size)
-        value_size = MemoryCalculator.get_value_size(self.precision)
+        size_float_X = MemoryCalculator.get_value_size(self.precision)
 
         # bytes
         size_rate_caches = 0
         for number_states in number_atomic_states_by_atomic_physics_ion_species:
-            size_rate_caches += value_size * number_states * 5 + number_states * 4
+            size_rate_caches += size_float_X * number_states * 5 + number_states * 4
 
-        size_rejection_probability_cache_cell = value_size * number_cells_per_supercell
-        size_rejection_probability_cache_bin = value_size * number_electron_histogram_bins
-        size_field_energy_use_cache = value_size * number_cells_per_supercell
+        size_rejection_probability_cache_cell = size_float_X * number_cells_per_supercell
+        size_rejection_probability_cache_bin = size_float_X * number_electron_histogram_bins
+        size_field_energy_use_cache = size_float_X * number_cells_per_supercell
 
-        size_electron_histogram = 3 * value_size * number_electron_histogram_bins + value_size
+        size_electron_histogram = 3 * size_float_X * number_electron_histogram_bins + size_float_X
         size_shared_ressources_over_subscribed = 4
         size_shared_found_unbound = 4
-        size_time_remaining = value_size
-        size_time_step = value_size
+        size_time_remaining = size_float_X
+        size_time_step = size_float_X
 
-        ipd_sum_weight_all = value_size
-        ipd_sum_weight_electrons = value_size
-        ipd_sum_temperature_functional = value_size
-        ipd_sum_charge_number_ions = value_size
-        ipd_sum_charge_number_ions_squared = value_size
-        ipd_debye_length = value_size
-        ipd_zstar = value_size
-        ipd_temperature_energy = value_size
+        ipd_sum_weight_all = size_float_X
+        ipd_sum_weight_electrons = size_float_X
+        ipd_sum_temperature_functional = size_float_X
+        ipd_sum_charge_number_ions = size_float_X
+        ipd_sum_charge_number_ions_squared = size_float_X
+        ipd_debye_length = size_float_X
+        ipd_zstar = size_float_X
+        ipd_temperature_energy = size_float_X
 
         per_super_cell_memory = (
             size_rate_caches
@@ -278,26 +282,28 @@ class MemoryCalculator(pydantic.BaseModel):
     def memory_required_by_particles_of_species(
         self,
         particle_filled_cells: nptype.NDArray,
+        particles_per_cell: int,
         species_attribute_list: list[str],
         custom_attributes_size_dict: dict[str, int] = {},
-        particles_per_cell: int = 2,
     ) -> int:
         """
         Memory required for a species' particles per device.
 
         @detail species flag/constants do not occupy global device memory, since they are compiled in.
+        @attention use particles_per_cell=1 if passing the number of particles directly!
 
-        @param particle_filled_cells either number or extent of particle filled cell on device
-        @param species_attribute_list list of species attribute names of species see ``species.param``,
-            for example ["momentum", "position", "weighting"]
-        @param additional_attributes list of size of additional attributes, **in bits**, for example {"custom":32}
+        @param particle_filled_cells either number of particle filled cells, extent of particle filled cells,
+            or number of macro-particles of species on device
         @param particles_per_cell number of particles of the species per cell
+        @param species_attribute_list list of species attribute names of species, see ``species.param``,
+            for example ["momentum", "position", "weighting"]
+        @param additional_attributes list of size of additional attributes, in bytes, for example {"custom":4}
 
         @return unit: bytes
         """
 
-        # in bit
-        minimum_particle_attributes = {"multiMask": 8, "cellIndex": 16}
+        # in byte
+        minimum_particle_attributes = {"multiMask": 1, "cellIndex": 2}
 
         predefined_attribute_size_dict = MemoryCalculator.get_predefined_attribute_dict(
             self.simulation_dimension, self.precision
@@ -306,7 +312,7 @@ class MemoryCalculator(pydantic.BaseModel):
         # cells filled by the target species
         number_particle_cells = int(np.prod(particle_filled_cells))
 
-        # bit
+        # byte
         mem_per_particle = 0
 
         for attribute in species_attribute_list:
@@ -323,10 +329,11 @@ class MemoryCalculator(pydantic.BaseModel):
                 )
 
         for attribute in minimum_particle_attributes.keys():
-            # bit
+            # byte
             mem_per_particle += minimum_particle_attributes[attribute]
 
-        req_mem = int(np.ceil(number_particle_cells * mem_per_particle * particles_per_cell / 8))
+        # byte
+        req_mem = int(np.ceil(number_particle_cells * mem_per_particle * particles_per_cell))
 
         return req_mem
 
