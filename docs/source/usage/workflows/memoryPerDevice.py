@@ -4,12 +4,13 @@
 This file is part of PIConGPU.
 
 Copyright 2018-2024 PIConGPU contributors
-Authors: Marco Garten, Pawel Ordyna
+Authors: Marco Garten, Pawel Ordyna,Brian Marre
 License: GPLv3+
 """
 
-from picongpu.extra.utils import MemoryCalculator
-from math import ceil
+from picongpu.extra.utils.memory_calculator import MemoryCalculator
+
+import numpy as np
 
 """
 @file
@@ -17,13 +18,40 @@ from math import ceil
 This file contains a usage example of the ``MemoryCalculator`` class
 for our :ref:`FoilLCT example <usage-examples-foilLCT>` and its ``4.cfg``.
 
-It is an estimate for how much memory is used per device if the whole
-target would be fully ionized but does not move much. Of course the real
-memory usage depends on the case and the dynamics inside the simulation.
-We calculate the memory of just one device per row of GPUs in laser
-propagation direction. We hereby assume that particles are distributed
-equally in transverse direction, like it is set up in the FoilLCT example.
+It calculates an estimate for how much memory is used per device if the whole
+target would be fully ionized but does not move much.
+
+The no-movement approximation may severely underestimate the memory requirements
+of individual GPUs, especially in setups with significant laser compression
+or implosion, due to macro-particle movement over the simulation run.
+The real-world memory usage always depends on the case and the dynamics inside
+the simulation and no-movement estimates should be taken with a grain of salt as
+an order-of-magnitude estimation.
+For a more accurate estimation use estimated compression multipliers.
 """
+
+
+def check_distributions(simulation_dimension, grid_distribution, gpu_particle_cell_distribution):
+    if len(grid_distribution) != simulation_dimension:
+        raise ValueError("grid_distribution must have one array for each simulation dimension")
+    if len(gpu_particle_cell_distribution) != simulation_dimension:
+        raise ValueError("gpu_particle_cell_distribution must have array for each simulation dimension")
+
+
+def check_extents(simulation_dimension, global_gpu_extent, gpu_cell_extent, gpu_particle_cell_extent):
+    if np.shape(gpu_cell_extent) != (simulation_dimension, *global_gpu_extent):
+        raise ValueError(
+            "grid_distribution and global_gpu_extent are not consistent.\n"
+            "\tCheck for each simulation dimension that grid_distribution has as many entries as gpu"
+            "rows are specified in global_gpu_extent."
+        )
+
+    if np.shape(gpu_particle_cell_extent) != (simulation_dimension, *global_gpu_extent):
+        raise ValueError(
+            "gpu_particle_cell_distribution and global_gpu_extent are not consistent.\n"
+            "\tCheck for each simulation dimension that gpu_particle_cell_distribution"
+            "has as many entries as gpu rows are specified in global_gpu_extent."
+        )
 
 
 cell_size = 0.8e-6 / 384.0  # 2.083e-9 m
@@ -32,62 +60,81 @@ y1 = 1.5e-6  # position of foil rear surface (m)
 L = 10e-9  # pre-plasma scale length (m)
 L_cutoff = 4 * L  # pre-plasma length (m)
 
-sim_dim = 2
-# number of cells in the simulation
-Nx_all, Ny_all, Nz_all = 256, 1280, 1
+# number of vacuum cells in front of the target
+vacuum_cells = int(np.ceil((y0 - L_cutoff) / cell_size))
+# number of target cells over the depth of the target(between surfaces + pre-plasma)
+target_cells = int(np.ceil((y1 - y0 + 2 * L_cutoff) / cell_size))
+
+simulation_dimension = 2
+
+# number of cells in the simulation in each direction
+global_cell_extent = np.array((256, 1280))[:simulation_dimension]
 # number of GPU rows in each direction
-x_rows, y_rows, z_rows = 2, 2, 1
-# number of cells per GPU
-Nx, Ny, Nz = Nx_all / x_rows, Ny_all / y_rows, Nz_all / z_rows
+global_gpu_extent = np.array((2, 2))[:simulation_dimension]
 
-vacuum_cells = ceil((y0 - L_cutoff) / cell_size)  # in front of the target
-# target cells (between surfaces + pre-plasma)
-target_cells = ceil((y1 - y0 + 2 * L_cutoff) / cell_size)
-# number of cells (y direction) on each GPU row
-GPU_rows = [0] * y_rows
-cells_to_spread = vacuum_cells + target_cells
-# spread the cells on the GPUs
-for ii, _ in enumerate(GPU_rows):
-    if cells_to_spread >= Ny:
-        GPU_rows[ii] = Ny
-        cells_to_spread -= Ny
-    else:
-        GPU_rows[ii] = cells_to_spread
-        break
-# remove vacuum cells from the front rows
-extra_cells = vacuum_cells
-for ii, _ in enumerate(GPU_rows):
-    if extra_cells >= Ny:
-        GPU_rows[ii] = 0
-        extra_cells -= Ny
-    else:
-        GPU_rows[ii] -= extra_cells
-        break
+super_cell_size = np.array((16, 16))
 
-pmc = MemoryCalculator(Nx, Ny, Nz)
+# how many cells each gpu in this row of this dimension handles
+#   here we distribute cells evenly, but this is not required, for example [np.array((128,128)), np.array((672, 608))]
+grid_distribution = [np.array((128, 128)), np.array((640, 640))]
 
-# typical number of particles per cell which is multiplied later for
-# each species and its relative number of particles
+print(f"grid distribution: {grid_distribution}")
+
+# extent of cells filled with particles for each gpu in this row of this dimension
+#   foil surface is orthogonal to picongpu laser propagation direction in positive y-direction
+gpu_particle_cell_distribution = [
+    grid_distribution[0],
+    # number of target cells on first GPU,                    target cells not on first GPU
+    np.array(
+        (max(grid_distribution[1][0] - vacuum_cells, 0), target_cells - max(grid_distribution[1][0] - vacuum_cells, 0))
+    ),
+]
+
+print(f"particle cell distribution: {gpu_particle_cell_distribution}")
+
+# debug checks
+check_distributions(simulation_dimension, grid_distribution, gpu_particle_cell_distribution)
+
+# get cell extent of each GPU: list of np.array[np.int_], one per simulation dimension, with each array entry being the
+#   cell extent of the corresponding gpu in the simulation, indexation by [simulation_dimension, gpu_index[0], gpu_index[1], ...]
+gpu_cell_extent = np.meshgrid(*grid_distribution, indexing="ij")
+
+# extent of cells filled with particles of each GPU:
+#   same indexation as gpu_cell_extent
+gpu_particle_cell_extent = np.meshgrid(*gpu_particle_cell_distribution, indexing="ij")
+
+# debug checks
+check_extents(simulation_dimension, global_gpu_extent, gpu_cell_extent, gpu_particle_cell_extent)
+
+mc = MemoryCalculator(simulation_dimension=simulation_dimension, super_cell_size=super_cell_size)
+
+# typical number of particles per cell which is multiplied later for each species and its relative number of particles
 N_PPC = 6
-# conversion factor to megabyte
-megabyte = 1.0 / (1024 * 1024)
 
-target_x = Nx  # full transverse dimension of the GPU
-target_z = Nz
+# conversion factor to mibi-byte
+mibibyte = 1024**2
 
+dimension_name_dict = {0: "x", 1: "y", 2: "z"}
 
-def sx(n):
-    return {1: "st", 2: "nd", 3: "rd"}.get(n if n < 20 else int(str(n)[-1]), "th")
+for gpu_index in np.ndindex(tuple(global_gpu_extent)):
+    gpu_header_string = "GPU ("
+    for dim in range(simulation_dimension):
+        gpu_header_string += dimension_name_dict[dim] + f" = {gpu_index[dim]}, "
+    print("\n" + gpu_header_string[:-2] + ")")
+    print("* Memory requirement:")
 
+    cell_extent = np.empty(simulation_dimension)
+    for dim in range(simulation_dimension):
+        cell_extent[dim] = gpu_cell_extent[dim][gpu_index]
 
-for row, target_y in enumerate(GPU_rows):
-    print("{}{} row of GPUs:".format(row + 1, sx(row + 1)))
-    print("* Memory requirement per GPU:")
-    # field memory per GPU
-    field_gpu = pmc.mem_req_by_fields(Nx, Ny, Nz, field_tmp_slots=2, particle_shape_order=2, sim_dim=sim_dim)
-    print(" + fields: {:.2f} MB".format(field_gpu * megabyte))
+    # field memory per GPU, see memory.param:fieldTmpNumSlots for number_of_temporary_field_slots
+    field_gpu = mc.memory_required_by_cell_fields(cell_extent, number_of_temporary_field_slots=2)
+    print(f" + fields: {field_gpu / mibibyte:.2f} MiB")
 
-    # electron macroparticles per supercell
+    # memory for random number generator states
+    rng_gpu = mc.memory_required_by_random_number_generator(cell_extent)
+
+    # electron macroparticles per cell
     e_PPC = N_PPC * (
         # H,C,N pre-ionization - higher weighting electrons
         3
@@ -96,48 +143,45 @@ for row, target_y in enumerate(GPU_rows):
         # electrons created from N ionization
         + (7 - 2)
     )
+
+    particle_cell_extent = np.empty(simulation_dimension)
+    for dim in range(simulation_dimension):
+        particle_cell_extent[dim] = gpu_particle_cell_extent[dim][gpu_index]
+
     # particle memory per GPU - only the target area contributes here
-    e_gpu = pmc.mem_req_by_particles(
-        target_x,
-        target_y,
-        target_z,
-        num_additional_attributes=0,
+    e_gpu = mc.memory_required_by_particles_of_species(
+        particle_filled_cells=particle_cell_extent,
+        species_attribute_list=["momentum", "position", "weighting"],
         particles_per_cell=e_PPC,
     )
-    H_gpu = pmc.mem_req_by_particles(
-        target_x,
-        target_y,
-        target_z,
-        # no bound electrons since H is pre-ionized
-        num_additional_attributes=0,
+    H_gpu = mc.memory_required_by_particles_of_species(
+        particle_filled_cells=particle_cell_extent,
+        species_attribute_list=["momentum", "position", "weighting"],
         particles_per_cell=N_PPC,
     )
-    C_gpu = pmc.mem_req_by_particles(
-        target_x,
-        target_y,
-        target_z,
-        num_additional_attributes=1,
-        particles_per_cell=N_PPC,  # number of bound electrons
-    )
-    N_gpu = pmc.mem_req_by_particles(
-        target_x,
-        target_y,
-        target_z,
-        num_additional_attributes=1,
+    C_gpu = mc.memory_required_by_particles_of_species(
+        particle_filled_cells=particle_cell_extent,
+        species_attribute_list=["momentum", "position", "weighting", "boundElectrons"],
         particles_per_cell=N_PPC,
     )
+    N_gpu = mc.memory_required_by_particles_of_species(
+        particle_filled_cells=particle_cell_extent,
+        species_attribute_list=["momentum", "position", "weighting", "boundElectrons"],
+        particles_per_cell=N_PPC,
+    )
+
     # memory for calorimeters
-    cal_gpu = pmc.mem_req_by_calorimeter(n_energy=1024, n_yaw=360, n_pitch=1) * 2  # electrons and protons
-    # memory for random number generator states
-    rng_gpu = pmc.mem_req_by_rng(Nx, Ny, Nz)
+    cal_gpu = (
+        mc.memory_required_by_calorimeter(number_energy_bins=1024, number_yaw_bins=360, number_pitch_bins=1) * 2
+    )  # electrons and protons
 
     print(" + species:")
-    print("  - e: {:.2f} MB".format(e_gpu * megabyte))
-    print("  - H: {:.2f} MB".format(H_gpu * megabyte))
-    print("  - C: {:.2f} MB".format(C_gpu * megabyte))
-    print("  - N: {:.2f} MB".format(N_gpu * megabyte))
-    print(" + RNG states: {:.2f} MB".format(rng_gpu * megabyte))
-    print(" + particle calorimeters: {:.2f} MB".format(cal_gpu * megabyte))
+    print(f"  - e: {e_gpu / mibibyte:.2f} MiB")
+    print(f"  - H: {H_gpu / mibibyte:.2f} MiB")
+    print(f"  - C: {C_gpu / mibibyte:.2f} MiB")
+    print(f"  - N: {N_gpu / mibibyte:.2f} MiB")
+    print(f" + RNG states: {rng_gpu / mibibyte:.2f} MiB")
+    print(f" + particle calorimeters: {cal_gpu / mibibyte:.2f} MiB")
 
     mem_sum = field_gpu + e_gpu + H_gpu + C_gpu + N_gpu + rng_gpu + cal_gpu
-    print("* Sum of required GPU memory: {:.2f} MB".format(mem_sum * megabyte))
+    print(f"* Sum of required GPU memory: {mem_sum / mibibyte:.2f} MiB")
