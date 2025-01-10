@@ -122,8 +122,8 @@ namespace picongpu::particles::atomicPhysics
 
         /** get deltaEnergy of transition
          *
-         * DeltaEnergy is defined as energy(UpperState) - energy(lowerState) [+ ionizationEnergy],
-         *  with lower and upper state as given in charge state box
+         * DeltaEnergy is defined as energy(upperState) - energy(lowerState) [+ ionizationEnergy],
+         *  with lower and upper state specified by the given transitionCollectionIndex
          *
          * @param atomicStateBox deviceDataBox giving access to atomic state property data
          * @param transitionBox deviceDataBox giving access to transition property data,

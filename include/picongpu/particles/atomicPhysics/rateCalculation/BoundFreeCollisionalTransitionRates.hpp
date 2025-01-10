@@ -169,9 +169,12 @@ namespace picongpu::particles::atomicPhysics::rateCalculation
                 /// @todo replace with screenedCharge(upperStateChargeState)?, Brian Marre, 2023
                 float_X const screenedCharge = chargeStateDataBox.screenedCharge(lowerStateChargeState) - 1._X; // [e]
 
-                float_X const U = energyElectron / energyDifference; // unitless
-                float_X const beta = betaFactor(screenedCharge); // unitless
-                float_64 const w = wFactor(U, beta); // unitless
+                // unitless
+                float_X const U = energyElectron / energyDifference;
+                // unitless
+                float_X const beta = betaFactor(screenedCharge);
+                // unitless
+                float_64 const w = wFactor(U, beta);
                 float_X const crossSection = static_cast<float_X>(
                     scalingConstant * combinatorialFactor
                     / static_cast<float_64>(pmacc::math::cPow(energyDifference, 2u)) / static_cast<float_64>(U)

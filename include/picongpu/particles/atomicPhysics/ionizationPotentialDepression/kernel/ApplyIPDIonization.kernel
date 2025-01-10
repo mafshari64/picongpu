@@ -201,12 +201,23 @@ namespace picongpu::particles::atomicPhysics::ionizationPotentialDepression::ker
                 ipd += BarrierSupressionIonization::getIPD(screenedCharge, eFieldNormAU);
             }
 
-            // eV
-            float_X const ipdIonizationEnergy = ionizationEnergy - ipd;
+            bool const stateIsUnbound = ((ionizationEnergy - ipd) <= 0._X);
+            bool const stateIsGenerallyUnbound = (ionizationEnergy <= 0._X);
 
-            if(ipdIonizationEnergy < 0._X)
+            /** @details states that are unbound without an IPD contribution must relax via auto-ionization, electronic
+             *  collisional ionization or deexcitation channels in the regular rate solver since IPD lacks the energy
+             *  for ionization.
+             *
+             *  These states are typically low shell hole states, IPD-Ionization will not relax these states until
+             *  very high charge states, causing:
+             *  - numerical energy creation as the IPD actually lacks the energy required for ionization
+             *  - instant ionization cascades, which are not consistent with the IPD equilibrium description
+             *
+             * @todo improve by developing a non equlibirium IPD description, Brian Marre, 2025
+             */
+            if(!stateIsGenerallyUnbound && stateIsUnbound)
             {
-                /* we only update the atomic state since IPDIonization is not a regular transition and does not use
+                /* we only update the atomic state since IPD-Ionization is not a regular transition and does not use
                  *   shared resources */
 
                 // update ion atomic state

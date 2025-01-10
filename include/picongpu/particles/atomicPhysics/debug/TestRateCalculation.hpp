@@ -406,18 +406,18 @@ namespace picongpu::particles::atomicPhysics::debug
         //! @return true =^= test passed
         bool testADKIonizationRate() const
         {
-            // 1/s
+            // unit: 1/s
             float_64 const correctRate = 6.391666527e+9 * 1 / 3.3e-17;
 
-            // sim.unit.eField()
+            // unit: unit_eField
             float_X const eFieldNorm = 0.0126 * sim.atomicUnit.eField() / sim.unit.eField();
 
-            // eV
+            // unit: eV
             float_X const ipd = 0._X;
 
             constexpr auto laserPolarization
                 = picongpu::particles::atomicPhysics::enums::ADKLaserPolarization::linearPolarization;
-            // 1/s
+            // unit: 1/s
             float_64 const rate
                 = static_cast<float_64>(
                       rateCalculation::BoundFreeFieldTransitionRates<laserPolarization>::rateADKFieldIonization<

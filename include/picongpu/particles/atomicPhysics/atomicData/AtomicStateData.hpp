@@ -40,7 +40,7 @@ namespace picongpu::particles::atomicPhysics::atomicData
      *
      * @tparam T_Number dataType used for number storage, typically uint32_t
      * @tparam T_Value dataType used for value storage, typically float_X
-     * @tparam T_ConfigNumber dataType used for storage of configNumber of atomic states
+     * @tparam T_ConfigNumber dataType used for conversion from/to configNumber to/from super configuration
      * @tparam T_Multiplicity dataType used for T_Multiplicity storage, typically uint64_t
      *
      * @attention ConfigNumber specifies the number of a state as defined by the configNumber

@@ -29,7 +29,7 @@ namespace picongpu::particles::atomicPhysics::debug
 {
     /** debug only, write atomicPhysics attributes to console
      *
-     * @attention only creates ouptut if atomicPhysics debug setting CPU_OUTPUT_ACTIVE == True
+     * @attention only creates output if compiling for debug backend
      * @attention only useful if compiling serial backend
      */
     struct PrintAtomicPhysicsIonToConsole
