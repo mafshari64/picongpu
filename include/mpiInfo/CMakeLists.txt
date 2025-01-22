@@ -22,7 +22,7 @@
 # Required cmake version
 ################################################################################
 
-cmake_minimum_required(VERSION 3.22.0)
+cmake_minimum_required(VERSION 3.25.0)
 
 
 ################################################################################
@@ -68,10 +68,10 @@ option(MPIINFO_ADD_RPATH "Add RPATH's to binary." ON)
 # Language Flags
 ###############################################################################
 
-# enforce C++17
+# enforce C++20
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 
 
 ################################################################################

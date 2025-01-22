@@ -8,7 +8,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.25)
 project(PIConGPUHeaderTest)
 
 # Add common functions from alpaka.
@@ -26,10 +26,10 @@ get_filename_component(PIC_ROOT_DIR "${PIC_ROOT_DIR}" ABSOLUTE)
 # Language Flags
 ###############################################################################
 
-# enforce C++17
+# enforce C++20
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 
 ################################################################################
 # PMacc

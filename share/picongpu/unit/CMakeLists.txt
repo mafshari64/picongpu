@@ -17,17 +17,17 @@
 # If not, see <http://www.gnu.org/licenses/>.
 #
 
-cmake_minimum_required(VERSION 3.22.0)
+cmake_minimum_required(VERSION 3.25.0)
 project("UnitTest")
 
 ###############################################################################
 # Language Flags
 ###############################################################################
 
-# enforce C++17
+# enforce C++20
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 
 
 ################################################################################
