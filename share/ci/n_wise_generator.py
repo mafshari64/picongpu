@@ -100,10 +100,9 @@ def is_valid_combination(row):
         os_name = row[2][0] if n >= 3 else ""
         os_version = get_version(row[2]) if n >= 3 else 0
 
-        if is_cuda and os_name == "ubuntu":
-            # CI container version 3.1 do not support ubuntu 18.04 anymore
-            if os_version < 20.04:
-                return False
+        # old OS versions base compile mostly does not support C++20
+        if os_name == "ubuntu" and os_version <= 20.04:
+            return False
 
         # CI nvcc image is not shipped with clang++
         # clang_cuda images can currently not be used because
@@ -116,9 +115,11 @@ def is_valid_combination(row):
             if is_hipcc and is_clang:
                 if v_hip < 6.0:
                     return False
-                if 6.0 <= v_hip <= 6.1 and v_compiler == 17:
+                if 6.0 <= v_hip <= 6.1 and v_compiler == 17 and os_version == 22.04:
                     return True
-                if v_hip == 6.2 and v_compiler == 18:
+                if v_hip == 6.2 and v_compiler == 18 and os_version == 22.04:
+                    return True
+                if v_hip == 6.3 and v_compiler == 18 and os_version == 24.04:
                     return True
             return False
 
@@ -127,7 +128,7 @@ def is_valid_combination(row):
             return False
         else:
             # install/clang.sh is currently only providing apt sources up to clang 18
-            if is_clang and v_compiler >= 19:
+            if is_clang and v_compiler >= 20:
                 return False
 
         # CUDA compiler requires backed `cuda`
@@ -140,6 +141,9 @@ def is_valid_combination(row):
 
         # clang cuda compatibility
         if is_clang_cuda:
+            # ubuntu 22.04 is only supported for HIP and is checked before in this filter function
+            if os_name == "ubuntu" and os_version <= 22.04:
+                return False
             if not is_cuda:
                 return False
             if 12.0 <= v_cuda <= 12.3 and v_compiler == 18:
@@ -150,6 +154,9 @@ def is_valid_combination(row):
         if is_cuda and is_nvcc:
             # for C++20 support CUDA >= 12 is required
             if v_cuda < 12.0:
+                return False
+            # ubuntu 22.04 is only supported for HIP and is checked before in this filter function
+            if os_name == "ubuntu" and os_version <= 22.04:
                 return False
 
             if is_gnu:
@@ -164,7 +171,7 @@ def is_valid_combination(row):
                     return False
                 if 12.0 <= v_cuda <= 12.3 and v_compiler <= 12:
                     return True
-                if 12.4 <= v_cuda <= 12.5 and v_compiler <= 13:
+                if 12.4 <= v_cuda <= 12.6 and v_compiler <= 13:
                     return True
 
             if is_clang:
@@ -177,22 +184,39 @@ def is_valid_combination(row):
 
             return False
 
+        # clang as host compiler
+        if is_clang:
+            if os_name == "ubuntu" and os_version == 22.04 and v_compiler <= 12:
+                return True
+            if os_name == "ubuntu" and os_version == 24.04 and v_compiler >= 13:
+                return True
+            return False
+
+        # g++ as host compiler
+        if is_gnu:
+            if os_name == "ubuntu" and os_version == 24.04:
+                return True
+            return False
+
     return True
 
 
 # compiler list
 # tuple with two components (compiler name, version)
 clang_compiers = [
+    # available in apt sources ubuntu 22.04
     ("clang++", 11),
     ("clang++", 12),
+    # available in apt sources ubuntu 24.04
     ("clang++", 13),
     ("clang++", 14),
     ("clang++", 15),
     ("clang++", 16),
     ("clang++", 17),
     ("clang++", 18),
+    ("clang++", 19),
 ]
-gnu_compilers = [("g++", 10), ("g++", 11), ("g++", 13)]
+gnu_compilers = [("g++", 10), ("g++", 11), ("g++", 13), ("g++", 14)]
 compilers = [clang_compiers, gnu_compilers]
 
 # generate clang cuda compiler list
@@ -220,14 +244,17 @@ compilers.append(hip_clang_compilers)
 # tuple with two components (backend name, version)
 # version is only required for the cuda backend
 backends = [
-    # ("hip", 6.0),
-    # ("hip", 6.1),
+    ("hip", 6.0),
+    ("hip", 6.1),
+    ("hip", 6.2),
+    ("hip", 6.3),
     ("cuda", 12.0),
     ("cuda", 12.1),
     ("cuda", 12.2),
     ("cuda", 12.3),
     ("cuda", 12.4),
     ("cuda", 12.5),
+    ("cuda", 12.6),
     ("omp2b",),
     ("serial",),
 ]
@@ -245,9 +272,11 @@ boost_libs_all = [
     "1.83.0",
     "1.84.0",
     "1.85.0",
+    "1.86.0",
+    "1.87.0",
 ]
 
-operating_system = [("ubuntu", 20.04)]
+operating_system = [("ubuntu", 22.04), ("ubuntu", 24.04)]
 
 if args.limit_boost_versions:
     # select each second but keep the order
