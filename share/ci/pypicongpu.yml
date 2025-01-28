@@ -1,7 +1,8 @@
 .base_pypicongpu_quick_test:
-  image: registry.hzdr.de/crp/alpaka-group-container/alpaka-ci-${CI_CONTAINER_NAME}-pic:${CONTAINER_TAG}
+  image: registry.hzdr.de/crp/alpaka-group-container/alpaka-ci-${CI_CONTAINER_NAME}-gcc-pic:${CONTAINER_TAG}
   variables:
     GIT_SUBMODULE_STRATEGY: normal
+    CXX_VERSION: g++-13
   script:
     - echo "CI_CONTAINER_NAME -> $CI_CONTAINER_NAME"
     - echo "PYTHON_VERSION -> $PYTHON_VERSION"
@@ -12,7 +13,7 @@
   interruptible: true
 
 .base_pypicongpu_compile_test:
-  image: registry.hzdr.de/crp/alpaka-group-container/alpaka-ci-${CI_CONTAINER_NAME}-pic:${CONTAINER_TAG}
+  image: registry.hzdr.de/crp/alpaka-group-container/alpaka-ci-${CI_CONTAINER_NAME}-gcc-pic:${CONTAINER_TAG}
   variables:
     GIT_SUBMODULE_STRATEGY: normal
   script:
