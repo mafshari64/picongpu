@@ -93,6 +93,8 @@ if [ ! -z ${PYTHON_COMPILING_TEST+x} ]; then
         script_error "BOOST_VERSION is not defined"
     fi
 
+    # set C++ compiler
+    export CXX=$CXX_VERSION
     # execute the compiling test
     python3 -m compiling -v
 fi
