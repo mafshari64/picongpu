@@ -7,7 +7,7 @@ This binning plugin is a flexible binner for particles properties.
 Users can 
     - Define their own axes
     - Define their own quantity which is binned
-    - Choose which species which are used for the binning
+    - Choose which species are used for the binning
     - Choose how frequently they want the binning to be executed
     - Choose if the binning should be time averaging or normalized by bin volume
     - Write custom output to file, for example other quantites related to the simulation which the user is interested in
@@ -61,14 +61,14 @@ Enables the user to find the location of the particle (in cells) in the simulati
 .. doxygenclass:: picongpu::plugins::binning::DomainInfo
     :members:
 
-The global and local offsets can be understood by lookng at the `PIConGPU domain definitions <https://github.com/ComputationalRadiationPhysics/picongpu/wiki/PIConGPU-domain-definitions>`_.
+The global and local offsets can be understood by looking at the `PIConGPU domain definitions <https://github.com/ComputationalRadiationPhysics/picongpu/wiki/PIConGPU-domain-definitions>`_.
 
 
 
 Dimensionality and units
 ^^^^^^^^^^^^^^^^^^^^^^^^
-Users can specify the units of their functor output using a 7 dimensional array. Each element of the array corresponds an SI base unit, and the value stored in that index is the exponent of the unit.
-The dimensional base quantities are defined as in ``SIBaseUnits_t`` following the international system of quantities (ISQ).
+Users can specify the units of their functor output using a 7 dimensional array. Each element of the array corresponds to an SI base unit, and the value stored in that index is the exponent of the unit.
+The dimensional base quantities are defined in ``SIBaseUnits_t`` following the international system of quantities (ISQ).
 If no units are given, the quantity is assumed to be dimensionless.
 
 .. code-block:: c++
@@ -83,7 +83,7 @@ If no units are given, the quantity is assumed to be dimensionless.
 
 Axis
 ----
-Axis is a combination of a :ref:`functor description <usage/plugins/binningPlugin:Functor Description>` and an  :ref:`axis splitting <usage/plugins/binningPlugin:Axis Splitting>`
+Axis is a combination of a :ref:`functor description <usage/plugins/binningPlugin:Functor Description>` and an  :ref:`axis splitting <usage/plugins/binningPlugin:Axis Splitting>`.
 These are brought together by createAxis functions, depending on what kind of an axis you want.
 The name used in the functor description is used as the name of the axis for openPMD. 
 
@@ -105,7 +105,7 @@ Binning can be done over an arbitrary number of axes, by creating a tuple of all
 Axis Splitting
 ^^^^^^^^^^^^^^
 Defines the axis range and how it is split into bins.
-In the future this plugin will support other ways to split the domain, eg. using the binWidth or by auto-selecting the parameters.
+In the future, this plugin will support other ways to split the domain, eg. using the binWidth or by auto-selecting the parameters.
 
 .. doxygenclass:: picongpu::plugins::binning::axis::AxisSplitting
     :members:
