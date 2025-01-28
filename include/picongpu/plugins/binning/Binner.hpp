@@ -308,8 +308,12 @@ namespace picongpu
                         [&](auto const&... tupleArgs)
                         {
                             (misc::ExecuteIf{}(
-                                 std::bind(BinLeavingParticles<decltype(tupleArgs)>{}, this, direction),
-                                 misc::SpeciesNameIsEqual<decltype(tupleArgs)>{},
+                                 std::bind(
+                                     BinLeavingParticles<typename std::decay_t<decltype(tupleArgs)>>{},
+                                     this,
+                                     tupleArgs,
+                                     direction),
+                                 misc::SpeciesNameIsEqual<typename std::decay_t<decltype(tupleArgs)>::species_type>{},
                                  speciesName),
                              ...);
                         },
@@ -429,10 +433,11 @@ namespace picongpu
             }
 
         private:
-            template<typename T_Species>
-            void doBinningForSpecies(T_Species, uint32_t currentStep)
+            template<typename T_FilteredSpecies>
+            void doBinningForSpecies(T_FilteredSpecies const& fs, uint32_t currentStep)
             {
-                using Species = pmacc::particles::meta::FindByNameOrType_t<VectorAllSpecies, T_Species>;
+                using Species = pmacc::particles::meta::
+                    FindByNameOrType_t<VectorAllSpecies, typename T_FilteredSpecies::species_type>;
                 using TParticlesBox = typename Species::ParticlesBoxType;
                 using TDataBox = DataBox<PitchedBox<TDepositedQuantity, TBinningData::getNAxes()>>;
                 using TDepositedQuantityFunctor = typename TBinningData::DepositionFunctorType;
@@ -467,19 +472,24 @@ namespace picongpu
                         axisKernels,
                         binningData.depositionData.functor,
                         binningData.axisExtentsND,
+                        fs.filter,
                         currentStep,
                         mapper);
             }
 
-            template<typename T_Species>
+            template<typename T_FilteredSpecies>
             struct BinLeavingParticles
             {
-                using Species = pmacc::particles::meta::
-                    FindByNameOrType_t<VectorAllSpecies, T_Species, pmacc::errorHandlerPolicies::ReturnType<void>>;
+                using Species = pmacc::particles::meta::FindByNameOrType_t<
+                    VectorAllSpecies,
+                    typename T_FilteredSpecies::species_type,
+                    pmacc::errorHandlerPolicies::ReturnType<void>>;
 
                 template<typename T_BinData>
-                auto operator()([[maybe_unused]] Binner<T_BinData>* binner, [[maybe_unused]] int32_t direction) const
-                    -> void
+                auto operator()(
+                    [[maybe_unused]] Binner<T_BinData>* binner,
+                    T_FilteredSpecies const& fs,
+                    [[maybe_unused]] int32_t direction) const -> void
                 {
                     if constexpr(!std::is_same_v<void, Species>)
                     {
@@ -519,6 +529,7 @@ namespace picongpu
                                 axisKernels,
                                 binner->binningData.depositionData.functor,
                                 binner->binningData.axisExtentsND,
+                                fs.filter,
                                 Environment<>::get().SimulationDescription().getCurrentStep(),
                                 beginExternalCellsLocal,
                                 endExternalCellsLocal,

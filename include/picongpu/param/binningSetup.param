@@ -108,6 +108,14 @@ namespace picongpu
              */
             auto electronsObj = PMACC_CSTRING("e"){};
 
+            /**
+             * Optionally pass a particle filter to be used for this
+             * Simply a particle predicate functor
+             */
+            auto allParticles
+                = [] ALPAKA_FN_ACC(auto const& domainInfo, auto const& worker, auto const& particle) -> bool
+            { return true; };
+
             // type is void if species doesn't exist
             using speciesExists = typename pmacc::particles::meta::FindByNameOrType_t<
                 VectorAllSpecies,
@@ -118,7 +126,7 @@ namespace picongpu
             if constexpr(!std::is_same_v<void, speciesExists>)
             {
                 // Bring the species together in a tuple
-                auto speciesTuple = createTuple(electronsObj);
+                auto speciesTuple = createSpeciesTuple(FilteredSpecies{electronsObj, allParticles});
 
                 /**
                  * Define deposited quantity here

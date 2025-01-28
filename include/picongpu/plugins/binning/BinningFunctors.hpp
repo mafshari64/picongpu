@@ -102,19 +102,17 @@ namespace picongpu
                 T_AxisTuple const& axisTuple,
                 T_DepositionFunctor const& quantityFunctor,
                 DataSpace<T_nAxes> const& extents,
+                auto const& filter,
                 uint32_t const currentStep,
                 T_Mapping const& mapper) const
             {
                 DataSpace<simDim> const superCellIdx(mapper.getSuperCellIndex(worker.blockDomIdxND()));
-
+                // supercell index relative to the border origin
+                auto const physicalSuperCellIdx = superCellIdx - mapper.getGuardingSuperCells();
                 /**
                  * Init the Domain info, here because of the possibility of a moving window
                  */
-                auto const domainInfo = DomainInfo{
-                    currentStep,
-                    globalOffset,
-                    localOffset,
-                    superCellIdx - mapper.getGuardingSuperCells()};
+                auto const domainInfo = DomainInfo{currentStep, globalOffset, localOffset, physicalSuperCellIdx};
 
                 auto const functorParticle = FunctorParticle{};
 
@@ -126,15 +124,19 @@ namespace picongpu
                     return;
 
                 forEachParticle(
-                    [&](auto const& lockstepWorker, auto& particle) {
-                        functorParticle(
-                            lockstepWorker,
-                            binningBox,
-                            quantityFunctor,
-                            axisTuple,
-                            domainInfo,
-                            extents,
-                            particle);
+                    [&](auto const& lockstepWorker, auto& particle)
+                    {
+                        if(filter(domainInfo, worker, particle))
+                        {
+                            functorParticle(
+                                lockstepWorker,
+                                binningBox,
+                                quantityFunctor,
+                                axisTuple,
+                                domainInfo,
+                                extents,
+                                particle);
+                        }
                     });
             }
         };
@@ -185,6 +187,7 @@ namespace picongpu
                 T_AxisTuple const& axisTuple,
                 T_DepositionFunctor const& quantityFunctor,
                 DataSpace<T_nAxes> const& extents,
+                auto const& filter,
                 uint32_t const currentStep,
                 pmacc::DataSpace<simDim> const& beginCellIdxLocal,
                 pmacc::DataSpace<simDim> const& endCellIdxLocal,
@@ -192,14 +195,10 @@ namespace picongpu
             {
                 /* multi-dimensional offset vector from local domain origin on GPU in units of super cells */
                 pmacc::DataSpace<simDim> const superCellIdx(mapper.getSuperCellIndex(worker.blockDomIdxND()));
-                auto const superCellCellOffsetNoGuard
-                    = (superCellIdx - mapper.getGuardingSuperCells()) * SuperCellSize::toRT();
+                // supercell index relative to the border origin
+                auto const physicalSuperCellIdx = superCellIdx - mapper.getGuardingSuperCells();
 
-                auto const domainInfo = DomainInfo{
-                    currentStep,
-                    globalOffset,
-                    localOffset,
-                    superCellIdx - mapper.getGuardingSuperCells()};
+                auto const domainInfo = DomainInfo{currentStep, globalOffset, localOffset, physicalSuperCellIdx};
                 auto const functorParticle = FunctorParticle{};
 
                 auto forEachParticle
@@ -212,21 +211,25 @@ namespace picongpu
                 forEachParticle(
                     [&](auto const& lockstepWorker, auto& particle)
                     {
-                        // Check if it fits the internal cells range
-                        auto const cellInSuperCell
-                            = pmacc::math::mapToND(SuperCellSize::toRT(), static_cast<int>(particle[localCellIdx_]));
-                        auto const localCell = superCellCellOffsetNoGuard + cellInSuperCell;
-
-                        if(detail::insideBounds(localCell, beginCellIdxLocal, endCellIdxLocal))
+                        if(filter(domainInfo, worker, particle))
                         {
-                            functorParticle(
-                                lockstepWorker,
-                                binningBox,
-                                quantityFunctor,
-                                axisTuple,
-                                domainInfo,
-                                extents,
-                                particle);
+                            // Check if it fits the internal cells range
+                            auto const cellInSuperCell = pmacc::math::mapToND(
+                                SuperCellSize::toRT(),
+                                static_cast<int>(particle[localCellIdx_]));
+                            auto const localCell = domainInfo.blockCellOffset + cellInSuperCell;
+
+                            if(detail::insideBounds(localCell, beginCellIdxLocal, endCellIdxLocal))
+                            {
+                                functorParticle(
+                                    lockstepWorker,
+                                    binningBox,
+                                    quantityFunctor,
+                                    axisTuple,
+                                    domainInfo,
+                                    extents,
+                                    particle);
+                            }
                         }
                     });
             }

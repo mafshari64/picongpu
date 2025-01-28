@@ -23,6 +23,7 @@
 #include "picongpu/plugins/binning/BinningCreator.hpp"
 #include "picongpu/plugins/binning/BinningData.hpp"
 #include "picongpu/plugins/binning/DomainInfo.hpp"
+#include "picongpu/plugins/binning/FilteredSpecies.hpp"
 #include "picongpu/plugins/binning/FunctorDescription.hpp"
 #include "picongpu/plugins/binning/UnitConversion.hpp"
 #include "picongpu/plugins/binning/axis/LinearAxis.hpp"
