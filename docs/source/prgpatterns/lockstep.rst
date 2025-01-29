@@ -161,7 +161,7 @@ Collective Loop over particles
 * each worker needs to pass a loop N times
 * in this example, there are more dates than workers that process them
 
-.. code-block:: bash
+.. code-block:: cpp
 
     // variable 'worker' is provided by pmacc if the kernel launch macro `PMACC_LOCKSTEP_KERNEL()` is used.
     // `frame` is a list which must be traversed collectively
