@@ -100,7 +100,7 @@ def is_valid_combination(row):
         os_name = row[2][0] if n >= 3 else ""
         os_version = get_version(row[2]) if n >= 3 else 0
 
-        # old OS versions base compile mostly does not support C++20
+        # old OS versions' base compiler does not fully support C++20
         if os_name == "ubuntu" and os_version <= 20.04:
             return False
 
@@ -127,8 +127,8 @@ def is_valid_combination(row):
         if is_hipcc:
             return False
         else:
-            # install/clang.sh is currently only providing apt sources up to clang 18
-            if is_clang and v_compiler >= 20:
+            # install/clang.sh is currently not providing apt sources later than this clang version
+            if is_clang and v_compiler > 19:
                 return False
 
         # CUDA compiler requires backed `cuda`
@@ -216,7 +216,7 @@ clang_compiers = [
     ("clang++", 18),
     ("clang++", 19),
 ]
-gnu_compilers = [("g++", 10), ("g++", 11), ("g++", 13), ("g++", 14)]
+gnu_compilers = [("g++", 10), ("g++", 11), ("g++", 12), ("g++", 13), ("g++", 14)]
 compilers = [clang_compiers, gnu_compilers]
 
 # generate clang cuda compiler list

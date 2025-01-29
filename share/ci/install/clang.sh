@@ -8,7 +8,8 @@ set -o pipefail
 cd $CI_PROJECT_DIR
 
 # provide sources for clang versions missing in the containers version 4.0
-#echo -e "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-17 main\ndeb-src http://apt.llvm.org/noble/ llvm-toolchain-noble-17 main" >> /etc/apt/sources.list.d/llvm.list
+# the next line is a template to enable alternative clang versions which are not part of the release
+# echo -e "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main\ndeb-src http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" >> /etc/apt/sources.list.d/llvm.list
 
 apt -y update
 
