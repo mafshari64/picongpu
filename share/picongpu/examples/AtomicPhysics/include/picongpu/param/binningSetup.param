@@ -71,7 +71,7 @@ namespace picongpu::plugins::binning
         auto ions = PMACC_CSTRING("Cu"){};
 
         /// Bring the species together in a tuple
-        auto speciesTuple = createTuple(ions);
+        auto speciesTuple = createSpeciesTuple(ions);
 
         //! Define deposited quantity
         auto getParticleWeighting = [] ALPAKA_FN_ACC(auto const& worker, auto const& particle) -> float_64
