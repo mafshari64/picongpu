@@ -39,21 +39,15 @@ namespace picongpu
 
             DINLINE FunctorParticle() = default;
 
-            template<
-                typename T_Worker,
-                typename T_HistBox,
-                typename T_DepositionFunctor,
-                typename T_AxisTuple,
-                typename T_Particle,
-                uint32_t T_nAxes>
+            template<typename T_HistBox, typename T_DepositionFunctor, uint32_t T_nAxes>
             DINLINE void operator()(
-                T_Worker const& worker,
+                auto const& worker,
                 T_HistBox histBox,
                 T_DepositionFunctor const& quantityFunctor,
-                T_AxisTuple const& axes,
+                auto const& axes,
                 DomainInfo const& domainInfo,
                 DataSpace<T_nAxes> const& extents,
-                T_Particle const& particle) const
+                auto const& particle) const
             {
                 using DepositionType = typename T_HistBox::ValueType;
 
@@ -64,7 +58,15 @@ namespace picongpu
                     {
                         uint32_t i = 0;
                         // This assumes n_bins and getBinIdx exist
-                        ((binsDataspace[i++] = tupleArgs.getBinIdx(domainInfo, worker, particle, validIdx)), ...);
+                        validIdx
+                            = ((
+                                   [&]
+                                   {
+                                       auto [isValid, binIdx] = tupleArgs.getBinIdx(domainInfo, worker, particle);
+                                       binsDataspace[i++] = binIdx;
+                                       return isValid;
+                                   }())
+                               && ...);
                     },
                     axes);
 
@@ -85,21 +87,14 @@ namespace picongpu
 
             HINLINE BinningFunctor() = default;
 
-            template<
-                typename T_Worker,
-                typename TParticlesBox,
-                typename T_HistBox,
-                typename T_DepositionFunctor,
-                typename T_AxisTuple,
-                typename T_Mapping,
-                uint32_t T_nAxes>
+            template<typename T_HistBox, typename T_DepositionFunctor, typename T_Mapping, uint32_t T_nAxes>
             DINLINE void operator()(
-                T_Worker const& worker,
+                auto const& worker,
                 T_HistBox binningBox,
-                TParticlesBox particlesBox,
+                auto particlesBox,
                 pmacc::DataSpace<simDim> const& localOffset,
                 pmacc::DataSpace<simDim> const& globalOffset,
-                T_AxisTuple const& axisTuple,
+                auto const& axisTuple,
                 T_DepositionFunctor const& quantityFunctor,
                 DataSpace<T_nAxes> const& extents,
                 auto const& filter,
