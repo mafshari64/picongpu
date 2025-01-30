@@ -325,7 +325,7 @@ def print_job_yaml(test_pkg_versions: Dict[str, List[str]]):
             body={
                 "variables": {
                     "PYTHON_VERSION": pyVer + ".*",
-                    "CI_CONTAINER_NAME": "ubuntu20.04",
+                    "CI_CONTAINER_NAME": "ubuntu24.04",
                 },
                 "extends": ".base_pypicongpu_quick_test",
             },

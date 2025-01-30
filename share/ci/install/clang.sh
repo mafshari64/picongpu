@@ -7,10 +7,9 @@ set -o pipefail
 
 cd $CI_PROJECT_DIR
 
-# provide sources for clang versions missing in the containers version 3.2
-echo -e "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-16 main\ndeb-src http://apt.llvm.org/focal/ llvm-toolchain-focal-16 main" >> /etc/apt/sources.list.d/llvm.list
-echo -e "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-17 main\ndeb-src http://apt.llvm.org/focal/ llvm-toolchain-focal-17 main" >> /etc/apt/sources.list.d/llvm.list
-echo -e "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-18 main\ndeb-src http://apt.llvm.org/focal/ llvm-toolchain-focal-18 main" >> /etc/apt/sources.list.d/llvm.list
+# provide sources for clang versions missing in the containers version 4.0
+# the next line is a template to enable alternative clang versions which are not part of the release
+# echo -e "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main\ndeb-src http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" >> /etc/apt/sources.list.d/llvm.list
 
 apt -y update
 
