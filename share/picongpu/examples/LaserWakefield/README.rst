@@ -1,3 +1,5 @@
+.. _LWFA-example
+
 LaserWakefield: Laser Electron Acceleration
 ===========================================
 

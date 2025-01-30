@@ -222,10 +222,11 @@ Attribute                   Description
 Example binning plugin usage: Laser Wakfield electron spectrometer
 ==================================================================
 
-The LWFA example contains a sample binning plugin setup to calculate an in-situ electron spectrometer.
+The :ref:`LWFA example <LWFA-example>`  contains a sample binning plugin setup to calculate an in-situ electron spectrometer.
 The kinetic energy of the electrons :math:`E = (\gamma - 1) m_o c^2` is plotted on axis 1 and the direction of the electrons :math:`\theta = \mathrm{atan}(p_x/p_y)` is plotted on axis 2.
 The charge :math:`Q` moving in the bin direction :math:`\theta` at the bin energy :math:`E` is calculated for each bin.
 The charge is normalized to the bin volume :math:`\Delta E \cdot \Delta \theta`.
+Such spectrometers are a common tool in plasma based electron acceleration experiments [Kurz2018]_.
 
 .. note::
 
@@ -285,3 +286,13 @@ To read the electron specrometer data in python, one could load and plot it like
 
 	  plt.tight_layout()
 	  plt.show()
+
+
+References
+----------
+
+.. [Kurz2018]
+        T. Kurz, J.P. Couperus, J.M. Krämer, et al.
+        *Calibration and cross-laboratory implementation of scintillating screens for electron bunch charge determination*,
+        Review of Scientific Instruments (2018),
+        https://doi.org/10.1063/1.5041755
