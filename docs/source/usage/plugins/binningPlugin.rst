@@ -27,7 +27,7 @@ Multiple binnings can be run at the same time by simply calling ``addBinner()`` 
 .. doxygenclass:: picongpu::plugins::binning::BinningCreator
     :members: addBinner
 
-A most important parts of defining a binning are the axes (the axes of the histogram which define the bins) and the deposited quantity (the quantity to be binned).
+The most important parts of defining a binning are the axes (the axes of the histogram which define the bins) and the deposited quantity (the quantity to be binned).
 Both of these are described using the "Functor Description".
 
 
@@ -219,7 +219,7 @@ Attribute                   Description
 =========================== ==========================================================
 
 
-Example binning plugin usage: Laser Wakfield electron spectrometer
+Example binning plugin usage: Laser Wakefield electron spectrometer
 ==================================================================
 
 The :ref:`LWFA example <LWFA-example>`  contains a sample binning plugin setup to calculate an in-situ electron spectrometer.
@@ -231,12 +231,12 @@ Such spectrometers are a common tool in plasma based electron acceleration exper
 .. note::
 
    Please note that if you specify the SI units of an axis, e.g. via ``energyDimension`` in the LWFA example,
-   PIConGPU automatically converts to the internal unit system, but then also expects SI-compliant values
-   (in the case of energy Jouls).
+   PIConGPU automatically converts to the internal unit system, but then also expects SI-compliant values for the axis range
+   (in the case of energy Joules).
 
 
 
-To read the electron specrometer data in python, one could load and plot it like this:
+To read the electron spectrometer data in python, one could load and plot it like this:
 
 .. code:: python
 
@@ -265,12 +265,12 @@ To read the electron specrometer data in python, one could load and plot it like
           theta_bins = espec_h.get_attribute('pointingXY_bin_edges')
 
           # convert C/J/rad -> C/MeV/mrad
-	  convert_C_per_Joul_per_rad_to_pC_per_MeV_per_mrad = 1./1e-12 * const.elementary_charge/1e6 * 1/1e3
+	  convert_C_per_Joule_per_rad_to_pC_per_MeV_per_mrad = 1./1e-12 * const.elementary_charge/1e6 * 1/1e3
 
 	  # plot
 	  plt.pcolormesh(np.array(E_bins) / const.elementary_charge / 1e6,
                          np.array(theta_bins) / 0.001,
-                         espec[1:-1, 1:-1] * convert_C_per_Joul_per_rad_to_pC_per_MeV_per_mrad,
+                         espec[1:-1, 1:-1] * convert_C_per_Joule_per_rad_to_pC_per_MeV_per_mrad,
                          norm=LogNorm(), cmap=plt.cm.inferno)
 	  cb = plt.colorbar()
 
