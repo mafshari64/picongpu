@@ -66,7 +66,7 @@ namespace picongpu
 
             // Create energy Axis (defined in SI units)
             float_X const minEnergy = 0.0_X;
-            float_X const maxEnergy_MeV = 10.0_X;
+            float_X const maxEnergy_MeV = 100.0_X;
             float_X const maxEnergy = sim.si.conv().eV2Joule(maxEnergy_MeV * 1e6); // [J]
             auto ax_energy
                 = axis::createLinear(axis::AxisSplitting(axis::Range{minEnergy, maxEnergy}, 800), energyDescription);
@@ -91,9 +91,9 @@ namespace picongpu
                 = createFunctorDescription<float_X>(getPointingXY, "pointingXY", pointingXYDimension);
 
             // Create pointing axis Axis
-            float_X pointing_range = 10.0e-3;
+            float_X pointing_range = 250.0e-3;
             auto ax_pointing = axis::createLinear(
-                axis::AxisSplitting(axis::Range{-1._X * pointing_range, +1._X * pointing_range}, 937),
+                axis::AxisSplitting(axis::Range{-1._X * pointing_range, +1._X * pointing_range}, 256),
                 pointingXYDescription);
 
 
