@@ -1,0 +1,40 @@
+{
+    "$id": "https://registry.hzdr.de/crp/picongpu/schema/output/phase_space.json",
+    "type": "object",
+    "description": "Phase space output configuration for PIConGPU",
+    "unevaluatedProperties": false,
+    "required": ["phase_space_species_name", "phase_space_period", "phase_space_space", "phase_space_momentum"],
+    "properties": {
+        "phase_space_species_name": {
+            "type": "string",
+            "description": "Species name for phase space output (e.g., electron, ion)."
+        },
+        "phase_space_period": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Time period for phase space output."
+        },
+        "phase_space_space": {
+            "type": "string",
+            "enum": ["x", "y", "z"],
+            "description": "Spatial coordinate for phase space analysis."
+        },
+        "phase_space_momentum": {
+            "type": "string",
+            "enum": ["px", "py", "pz"],
+            "description": "Momentum component for phase space analysis."
+        },
+        "phase_space_min": {
+            "type": "number",
+            "description": "Minimum value for phase space filtering."
+        },
+        "phase_space_max": {
+            "type": "number",
+            "description": "Maximum value for phase space filtering."
+        },
+        "phase_space_filter": {
+            "type": "string",
+            "description": "Filter type for phase space output."
+        }
+    }
+}
