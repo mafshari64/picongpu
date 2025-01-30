@@ -169,7 +169,9 @@ def is_valid_combination(row):
                 # for C++20 add least gcc 10 is required
                 if v_compiler < 10:
                     return False
-                if 12.0 <= v_cuda <= 12.3 and v_compiler <= 12:
+                # gcc 12 shows issues with std::variant for cuda versions <12.4
+                # but should be in principle supported
+                if 12.0 <= v_cuda <= 12.3 and v_compiler < 12:
                     return True
                 if 12.4 <= v_cuda <= 12.6 and v_compiler <= 13:
                     return True
