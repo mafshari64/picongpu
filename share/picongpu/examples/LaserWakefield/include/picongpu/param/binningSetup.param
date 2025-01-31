@@ -108,7 +108,7 @@ namespace picongpu
             auto electronsObj = PMACC_CSTRING("e"){};
 
             // Bring the species together in a tuple
-            auto speciesTuple = createTuple(electronsObj);
+            auto speciesTuple = createSpeciesTuple(electronsObj);
 
 
             /**
