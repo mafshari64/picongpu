@@ -137,7 +137,7 @@ Species can be instances of a species type or a particle species name as a PMACC
 
     auto electronsObj = PMACC_CSTRING("e"){};
 
-Optionally, users can specify a filter to be used with the species. This is a predicate functor, i.e. it is a functor with a signature as described above and returns a boolean. If the filter returns true it means the particle is included in the binning.
+Optionally, users can specify a filter to be used with the species. This is a predicate functor, i.e. it is a functor with a signature as described above and which returns a boolean. If the filter returns true it means the particle is included in the binning.
 They can then create a FilteredSpecies object which contains the species and the filter. 
 
 .. code-block:: c++
