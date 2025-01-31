@@ -4,7 +4,7 @@ Binning
 #######
 
 This binning plugin is a flexible binner for particles properties.
-Users can 
+Users can
     - Define their own axes
     - Define their own quantity which is binned
     - Choose which species are used for the binning
@@ -27,7 +27,7 @@ Multiple binnings can be run at the same time by simply calling ``addBinner()`` 
 .. doxygenclass:: picongpu::plugins::binning::BinningCreator
     :members: addBinner
 
-A most important parts of defining a binning are the axes (the axes of the histogram which define the bins) and the deposited quantity (the quantity to be binned). 
+The most important parts of defining a binning are the axes (the axes of the histogram which define the bins) and the deposited quantity (the quantity to be binned).
 Both of these are described using the "Functor Description".
 
 
@@ -40,7 +40,7 @@ A functor description is created using createFunctorDescription.
 .. doxygenfunction:: picongpu::plugins::binning::createFunctorDescription
 
 
-Functor 
+Functor
 ^^^^^^^
 The functor needs to follow the signature shown below. This provides the user access to the particle object and with information about the :ref:`domain <usage/plugins/binningPlugin:Domain Info>`.
 
@@ -52,11 +52,11 @@ The functor needs to follow the signature shown below. This provides the user ac
         return myParameter;
     };
 
-The return type is defined by the user. 
+The return type is defined by the user.
 
 Domain Info
 """""""""""
-Enables the user to find the location of the particle (in cells) in the simulation domain. Contains 
+Enables the user to find the location of the particle (in cells) in the simulation domain. Contains
 
 .. doxygenclass:: picongpu::plugins::binning::DomainInfo
     :members:
@@ -85,14 +85,14 @@ Axis
 ----
 Axis is a combination of a :ref:`functor description <usage/plugins/binningPlugin:Functor Description>` and an  :ref:`axis splitting <usage/plugins/binningPlugin:Axis Splitting>`.
 These are brought together by createAxis functions, depending on what kind of an axis you want.
-The name used in the functor description is used as the name of the axis for openPMD. 
+The name used in the functor description is used as the name of the axis for openPMD.
 
 .. attention::
 
    The return type of the functor as specified in the functor description is required to be the same as the type of the range (min, max).
 
-Currently implemented axis types 
-    - Linear Axis 
+Currently implemented axis types
+    - Linear Axis
 
 .. doxygenclass:: picongpu::plugins::binning::axis::LinearAxis
 
@@ -119,22 +119,22 @@ Range
 
 Species
 -------
-PIConGPU species which should be used in binning. 
-Species can be instances of a species type or a particle species name as a PMACC_CSTRING. For example, 
+PIConGPU species which should be used in binning.
+Species can be instances of a species type or a particle species name as a PMACC_CSTRING. For example,
 
 .. code-block:: c++
-    
+
     auto electronsObj = PMACC_CSTRING("e"){};
 
 .. note::
 
-   Some parameters (axes and species) are given in the form of tuples. These are just a collection of objects and are of arbitrary size. 
+   Some parameters (axes and species) are given in the form of tuples. These are just a collection of objects and are of arbitrary size.
    Users can make a tuple by using the ``createTuple()`` function and passing in the objects as arguments.
 
 
 Deposited Quantity
 ------------------
-Quantity to be deposited is simply a :ref:`functor description <usage/plugins/binningPlugin:Functor Description>`. 
+Quantity to be deposited is simply a :ref:`functor description <usage/plugins/binningPlugin:Functor Description>`.
 
 
 Notify period
@@ -143,9 +143,9 @@ Set the periodicity of the output. Follows the period syntax defined :ref:`here 
 
 Dump Period
 -----------
-Defines the number of notify steps to accumulate over. Note that this is not accumulating over actual PIC iterations, but over the notify periods.   
+Defines the number of notify steps to accumulate over. Note that this is not accumulating over actual PIC iterations, but over the notify periods.
 If time averaging is enabled, this is also the period to do time averaging over.
-For example a value of 10 means that after every 10 notifies, an accumulated file will be written out. 
+For example a value of 10 means that after every 10 notifies, an accumulated file will be written out.
 If PIConGPU exits before executing 10 notifies, then there will be no output.
 The plugin dumps on every notify if this is set to either 0 or 1.
 
@@ -155,7 +155,7 @@ When dumping the accumulated output, whether or not to divide by the dump period
 
 .. attention::
 
-    The user needs to set a dump period to enable time averaging. 
+    The user needs to set a dump period to enable time averaging.
 
 Normalize by Bin Volume
 -----------------------
@@ -172,7 +172,7 @@ This can be configured using the ``enableRegion`` and ``disableRegion`` options 
 
 .. attention::
 
-Users must carefully configure the notify period when using the binning plugin for leaving particles. The plugin bins particles leaving the global simulation volume at every timestep (except 0) after particles are pushed, regardless of the notify period. 
+Users must carefully configure the notify period when using the binning plugin for leaving particles. The plugin bins particles leaving the global simulation volume at every timestep (except 0) after particles are pushed, regardless of the notify period.
 If the plugin is not notified at every timestep, this can cause discrepancies between the binning process and time-averaged data or histogram dumps, which follow the notify period.
 Additionally, the binning plugin is first notified at timestep 0, allowing users to bin initial conditions. However, leaving particles are first binned at timestep 1, after the initial particle push.
 Therefore, users should consider setting the notify period’s start at timestep 1, depending on their specific needs.
@@ -180,11 +180,11 @@ Therefore, users should consider setting the notify period’s start at timestep
 writeOpenPMDFunctor
 -------------------
 Users can also write out custom output to file, for example other quantites related to the simulation which the user is interested in.
-This is a lambda with the following signature. 
+This is a lambda with the following signature.
 
 .. code-block:: c++
 
-    [=](::openPMD::Series& series, ::openPMD::Iteration& iteration, ::openPMD::Mesh& mesh) -> void 
+    [=](::openPMD::Series& series, ::openPMD::Iteration& iteration, ::openPMD::Mesh& mesh) -> void
 
 .. note::
 
@@ -198,7 +198,7 @@ The binning outputs are stored in HDF5 files in ``simOutput/binningOpenPMD/`` di
 
 The files are named as ``<binnerOutputName>_<timestep>.h5``.
 
-The OpenPMD mesh is call "Binning". 
+The OpenPMD mesh is call "Binning".
 
 The outputs in written in SI units.
 
@@ -217,3 +217,82 @@ Attribute                   Description
 ``<axisName>_bin_edges``    The edges of the bins of an axis in SI units
 ``<axisName>_units``        The units of an axis
 =========================== ==========================================================
+
+
+Example binning plugin usage: Laser Wakefield electron spectrometer
+==================================================================
+
+The :ref:`LWFA example <LWFA-example>`  contains a sample binning plugin setup to calculate an in-situ electron spectrometer.
+The kinetic energy of the electrons :math:`E = (\gamma - 1) m_o c^2` is plotted on axis 1 and the direction of the electrons :math:`\theta = \mathrm{atan}(p_x/p_y)` is plotted on axis 2.
+The charge :math:`Q` moving in the bin direction :math:`\theta` at the bin energy :math:`E` is calculated for each bin.
+The charge is normalized to the bin volume :math:`\Delta E \cdot \Delta \theta`.
+Such spectrometers are a common tool in plasma based electron acceleration experiments [Kurz2018]_.
+
+.. note::
+
+   Please note that if you specify the SI units of an axis, e.g. via ``energyDimension`` in the LWFA example,
+   PIConGPU automatically converts to the internal unit system, but then also expects SI-compliant values for the axis range
+   (in the case of energy Joules).
+
+
+
+To read the electron spectrometer data in python, one could load and plot it like this:
+
+.. code:: python
+
+          import numpy as np
+          import matplotlib.pyplot as plt
+          from matplotlib.colors import LogNorm
+          import openpmd_api as io
+          import scipy.constants as const
+
+          # access openPMD series of eSpec
+          series = io.Series("./LWFA/simOutput/binningOpenPMD/eSpec_%T.h5", access=io.Access_Type.read_only)
+
+          last_iter = list(series.iterations)[-1]
+          it = series.iterations[last_iter]
+          espec_h = it.meshes['Binning'][io.Mesh_Record_Component.SCALAR]
+
+          # load data
+          espec = espec_h[:,:]
+          series.flush()
+
+          # convert to SI units and make positve (electrons have a negative charge)
+          espec *= espec_h.get_attribute('unitSI') * -1
+
+          # get axes (they are already in the correct SI unit)
+          E_bins = espec_h.get_attribute('Energy_bin_edges')
+          theta_bins = espec_h.get_attribute('pointingXY_bin_edges')
+
+          # convert C/J/rad -> C/MeV/mrad
+	  convert_C_per_Joule_per_rad_to_pC_per_MeV_per_mrad = 1./1e-12 * const.elementary_charge/1e6 * 1/1e3
+
+	  # plot
+	  plt.pcolormesh(np.array(E_bins) / const.elementary_charge / 1e6,
+                         np.array(theta_bins) / 0.001,
+                         espec[1:-1, 1:-1] * convert_C_per_Joule_per_rad_to_pC_per_MeV_per_mrad,
+                         norm=LogNorm(), cmap=plt.cm.inferno)
+	  cb = plt.colorbar()
+
+	  plt.xlabel(r"$E \, \mathrm{[MeV]}$", fontsize=18)
+	  plt.xticks(fontsize=14)
+
+	  plt.ylabel(r"$\theta \, \mathrm{[mrad]}$", fontsize=18)
+	  plt.yticks(fontsize=14)
+
+	  cb.set_label(r"$\frac{\mathrm{d}^2 Q}{\mathrm{d} E \mathrm{d}\theta} \, \mathrm{[pC/MeV/mrad]}$", fontsize=20)
+	  for i in cb.ax.get_yticklabels():
+	      i.set_fontsize(14)
+
+	  plt.tight_layout()
+	  plt.show()
+
+
+References
+----------
+
+.. [Kurz2018]
+        T. Kurz, J.P. Couperus, J.M. Krämer, et al.
+        *Calibration and cross-laboratory implementation of scintillating screens for electron bunch charge determination*,
+        Review of Scientific Instruments (2018),
+        https://doi.org/10.1063/1.5041755
