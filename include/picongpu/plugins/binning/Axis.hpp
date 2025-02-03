@@ -19,14 +19,12 @@
 
 #pragma once
 
-#include "picongpu/plugins/binning/DomainInfo.hpp"
 #include "picongpu/plugins/binning/UnitConversion.hpp"
 
 #include <array>
 #include <cstdint>
 #include <string>
-#include <type_traits>
-#include <vector>
+#include <utility>
 
 namespace picongpu
 {
@@ -82,7 +80,7 @@ namespace picongpu
             // @todo mark functions which are mandatory for each type of axis
 
 
-            template<typename T_BinningFunctor>
+            template<typename T_AttrFunctor>
             class GenericAxis
             {
             public:
@@ -91,17 +89,24 @@ namespace picongpu
                 struct GenericAxisKernel
                 {
                     uint32_t n_bins;
-                    T_BinningFunctor getBinIdx;
+                    T_AttrFunctor getAttributeValue;
 
-                    constexpr GenericAxisKernel(uint32_t n_bins, T_BinningFunctor binFunctor)
+                    constexpr GenericAxisKernel(uint32_t n_bins, T_AttrFunctor attrFunctor)
                         : n_bins{n_bins}
-                        , getBinIdx{binFunctor}
+                        , getAttributeValue{attrFunctor}
                     {
+                    }
+
+                    // Forwards arguments to getAttributeValue
+                    template<typename... Args>
+                    ALPAKA_FN_ACC auto getBinIdx(const Args&... args) const
+                    {
+                        return std::make_pair(true, getAttributeValue(args...));
                     }
                 };
                 GenericAxisKernel gAK;
 
-                GenericAxis(uint32_t n_bins, T_BinningFunctor binFunctor) : gAK{n_bins, binFunctor}
+                GenericAxis(uint32_t n_bins, T_AttrFunctor attrFunctor) : gAK{n_bins, attrFunctor}
                 {
                 }
 
@@ -119,20 +124,17 @@ namespace picongpu
                 std::array<double, numUnits> units;
                 struct BoolAxisKernel
                 {
-                    uint32_t n_bins;
+                    static constexpr uint32_t n_bins = 2u;
                     T_AttrFunctor getAttributeValue;
 
-                    constexpr BoolAxisKernel(T_AttrFunctor attrFunctor) : n_bins{2u}, getAttributeValue{attrFunctor}
+                    constexpr BoolAxisKernel(T_AttrFunctor attrFunctor) : getAttributeValue{attrFunctor}
                     {
                     }
 
-                    template<typename T_Worker, typename T_Particle>
-                    ALPAKA_FN_ACC uint32_t
-                    getBinIdx(const DomainInfo& domainInfo, const T_Worker& worker, const T_Particle& particle) const
+                    template<typename... Args>
+                    ALPAKA_FN_ACC std::pair<bool, bool> getBinIdx(const Args&... args) const
                     {
-                        // static cast to bool ?
-                        // bool val = getAttributeValue(worker, particle);
-                        return 0;
+                        return {true, getAttributeValue(args...)};
                     }
                 };
 
