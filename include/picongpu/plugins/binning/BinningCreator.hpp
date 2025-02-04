@@ -25,7 +25,9 @@
 #    include "picongpu/plugins/binning/Binner.hpp"
 #    include "picongpu/plugins/binning/BinningData.hpp"
 
+#    include <functional>
 #    include <memory>
+#    include <vector>
 
 #    include <openPMD/Series.hpp>
 
@@ -56,10 +58,6 @@ namespace picongpu
              * @param axisTupleObject tuple holding the axes
              * @param speciesTupleObject tuple holding the species to do the binning with
              * @param depositionData functorDescription of the deposited quantity
-             * @param notifyPeriod The periodicity of the output
-             * @param dumpPeriod The number of notify steps to accumulate over. Dump at the end. Defaults to 1.
-             * @param timeAveraging Time average the accumulated data when doing the dump. Defaults to true.
-             * @param normalizeByBinVolume defaults to true
              * @param writeOpenPMDFunctor Functor to write out user specified openPMD data
              */
             template<typename TAxisTuple, typename TSpeciesTuple, typename TDepositionData>

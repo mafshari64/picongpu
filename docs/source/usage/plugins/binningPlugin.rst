@@ -78,7 +78,7 @@ If no units are given, the quantity is assumed to be dimensionless.
     momentumDimension[SIBaseUnits::mass] = 1.0;
     momentumDimension[SIBaseUnits::time] = -1.0;
 
-.. doxygenenum:: picongpu::traits::SIBaseUnits::SIBaseUnits_t
+.. doxygenenum:: picongpu::SIBaseUnits::SIBaseUnits_t
 
 
 Axis
@@ -93,18 +93,24 @@ The name used in the functor description is used as the name of the axis for ope
 
 Currently implemented axis types
     - Linear Axis
+    - Log Axis
 
 .. doxygenclass:: picongpu::plugins::binning::axis::LinearAxis
 
 .. - Equally spaced bins between min and max. Total number of bins equal to n_bins.
 ..            axis::createLinear(cellY_splitting, cellPositionYDescription);
 
+.. doxygenclass:: picongpu::plugins::binning::axis::LogAxis
+
+.. - Logarithmically spaced bins between min and max. Total number of bins equal to n_bins.
+..            axis::createLog(cellY_splitting, cellPositionYDescription);
+
 
 Binning can be done over an arbitrary number of axes, by creating a tuple of all the axes. Limited by memory depending on number of bins in each axis.
 
 Axis Splitting
 ^^^^^^^^^^^^^^
-Defines the axis range and how it is split into bins.
+Defines the axis range and how it is split into bins. Bins are defined as closed open intervals from the lower edge to the upper edge.
 In the future, this plugin will support other ways to split the domain, eg. using the binWidth or by auto-selecting the parameters.
 
 .. doxygenclass:: picongpu::plugins::binning::axis::AxisSplitting
@@ -117,6 +123,11 @@ Range
 .. doxygenclass:: picongpu::plugins::binning::axis::Range
     :members:
 
+.. note::
+
+   Axes are passed to addBinner grouped in a tuple. This is just a collection of axis objects and is of arbitrary size. 
+   Users can make a tuple for axes by using the ``createTuple()`` function and passing in the axis objects as arguments.
+
 Species
 -------
 PIConGPU species which should be used in binning.
@@ -126,10 +137,24 @@ Species can be instances of a species type or a particle species name as a PMACC
 
     auto electronsObj = PMACC_CSTRING("e"){};
 
+Optionally, users can specify a filter to be used with the species. This is a predicate functor, i.e. it is a functor with a signature as described above and which returns a boolean. If the filter returns true it means the particle is included in the binning.
+They can then create a FilteredSpecies object which contains the species and the filter. 
+
+.. code-block:: c++
+    
+    auto myFilter = [] ALPAKA_FN_ACC(auto const& domainInfo, auto const& worker, auto const& particle) -> bool
+    {
+        bool binningEnabled = true;
+        // fn body
+        return binningEnabled;
+    };
+
+    auto fitleredElectrons = FilteredSpecies{electronsObj, myFilter};
+
 .. note::
 
-   Some parameters (axes and species) are given in the form of tuples. These are just a collection of objects and are of arbitrary size.
-   Users can make a tuple by using the ``createTuple()`` function and passing in the objects as arguments.
+   Species are passed to addBinner in the form of a tuple. This is just a collection of Species and FilteredSpecies objects (the tuple can be a mixure of both) and is of arbitrary size.
+   Users can make a species tuple by using the ``createSpeciesTuple()`` function and passing in the objects as arguments.
 
 
 Deposited Quantity
