@@ -114,11 +114,10 @@ namespace picongpu
 
 
                     template<typename T_Worker, typename T_Particle>
-                    ALPAKA_FN_ACC uint32_t getBinIdx(
+                    ALPAKA_FN_ACC std::pair<bool, uint32_t> getBinIdx(
                         const DomainInfo& domainInfo,
                         const T_Worker& worker,
-                        const T_Particle& particle,
-                        bool& validIdx) const
+                        const T_Particle& particle) const
                     {
                         auto val = getAttributeValue(domainInfo, worker, particle);
 
@@ -155,9 +154,7 @@ namespace picongpu
                                     binIdx = nBins - 1;
                             }
                         }
-
-                        validIdx = validIdx && enableBinning;
-                        return binIdx;
+                        return {enableBinning, binIdx};
                     }
                 };
 
