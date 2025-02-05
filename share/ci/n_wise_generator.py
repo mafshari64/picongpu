@@ -80,7 +80,7 @@ def get_base_image(compiler, backend):
 def is_valid_combination(row):
     n = len(row)
 
-    if n >= 2:
+    if n >= 3:
         v_compiler = get_version(row[0])
 
         is_clang_cuda = True if len(row[0]) == 3 and row[0][2] == "clangCuda" else False
