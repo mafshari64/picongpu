@@ -186,9 +186,9 @@ def is_valid_combination(row):
 
         # clang as host compiler
         if is_clang:
-            if os_name == "ubuntu" and os_version == 22.04 and v_compiler <= 12:
+            if os_name == "ubuntu" and os_version == 22.04 and v_compiler <= 13:
                 return True
-            if os_name == "ubuntu" and os_version == 24.04 and v_compiler >= 13:
+            if os_name == "ubuntu" and os_version == 24.04 and v_compiler >= 14:
                 return True
             return False
 

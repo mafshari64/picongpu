@@ -1364,7 +1364,7 @@ namespace mallocMC
                 // printf("Block %d, id %d: activeThreads=%d
                 // linearId=%d\n",blockIdx.x,threadIdx.x,activeThreads,linearId);
                 unsigned const temp
-                    = this->template getAvailaibleSlotsDeviceFunction(acc, slotSize, linearId, activeThreads);
+                    = this->getAvailaibleSlotsDeviceFunction(acc, slotSize, linearId, activeThreads);
                 if(temp)
                     alpaka::atomicOp<alpaka::AtomicAdd>(acc, &warpResults[wId], temp);
 
