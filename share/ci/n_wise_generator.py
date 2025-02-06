@@ -188,6 +188,12 @@ def is_valid_combination(row):
         if is_clang:
             if os_name == "ubuntu" and os_version == 22.04 and v_compiler <= 13:
                 return True
+            # disabled due to compile issue
+            #  chrono:2360:48: error: call to consteval function
+            #  'std::chrono::hh_mm_ss::_S_fractional_width' is not a constant expression
+            #        static constexpr unsigned fractional_width = {_S_fractional_width()};
+            if v_compiler == 14:
+                return False
             if os_name == "ubuntu" and os_version == 24.04 and v_compiler >= 14:
                 return True
             return False
