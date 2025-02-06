@@ -120,7 +120,7 @@ namespace pmacc
         template<typename T_MapperFactory>
         void shiftParticles(T_MapperFactory const& mapperFactory, bool onlyProcessMustShiftSupercells)
         {
-            this->template shiftParticlesImpl(
+            this->shiftParticlesImpl(
                 StrideMapperFactory<T_MapperFactory, 3>{mapperFactory},
                 onlyProcessMustShiftSupercells);
         }

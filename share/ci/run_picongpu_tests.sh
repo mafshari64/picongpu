@@ -56,9 +56,15 @@ if [[ "$PIC_TEST_CASE_FOLDER" =~ .*Empty.* ]] ; then
     # where all dependencies are disabled.
     CMAKE_ARGS="$CMAKE_ARGS -DPIC_USE_ISAAC=OFF -DPIC_USE_openPMD=OFF -DPIC_USE_PNGwriter=OFF -DPIC_USE_FFTW3=OFF"
 else
-    # enforce optional dependencies
-    CMAKE_ARGS="$CMAKE_ARGS -DPIC_USE_openPMD=ON -DPIC_USE_PNGwriter=ON -DPIC_USE_FFTW3=ON"
-
+    if [[ "${CXX_VERSION}" =~ ^g++-12 ]] ; then
+        # disable openPMD for g++-12 due to std::variant compile issues
+        # error: function "std::__detail::__variant::_Variadic_union<_First, _Rest...>::~_Variadic_union()
+        # ... cannot be referenced -- it is a deleted function
+        CMAKE_ARGS="$CMAKE_ARGS -DPIC_USE_openPMD=OFF -DPIC_USE_PNGwriter=ON -DPIC_USE_FFTW3=ON"
+    else
+        # enforce optional dependencies
+        CMAKE_ARGS="$CMAKE_ARGS -DPIC_USE_openPMD=ON -DPIC_USE_PNGwriter=ON -DPIC_USE_FFTW3=ON"
+    fi
     # ISAAC together with the example FoilLCT is to complex therefore the CI is always running out of memory.
     # ISAAC is disabled until someone adds support for alpaka 1.2.0
     # re-enable tho following code if somene fixes the ISAAC issues.
