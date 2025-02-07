@@ -19,6 +19,8 @@
 
 #pragma once
 
+#include "picongpu/plugins/binning/utility.hpp"
+
 #include <pmacc/attribute/FunctionSpecifier.hpp>
 
 namespace picongpu
@@ -66,7 +68,7 @@ namespace picongpu
         template<typename... Args>
         HDINLINE auto createSpeciesTuple(Args&&... args)
         {
-            return std::make_tuple(
+            return createTuple(
                 (IsFilteredSpecies<Args> ? std::forward<Args>(args) : FilteredSpecies{std::forward<Args>(args)})...);
         }
 

@@ -249,7 +249,7 @@ namespace picongpu
                 /**
                  * @return bin edges in SI units
                  */
-                std::vector<double> getBinEdgesSI()
+                std::vector<double> getBinEdgesSI() const
                 {
                     std::vector<double> binEdges;
                     binEdges.reserve(axisSplit.nBins + 1);

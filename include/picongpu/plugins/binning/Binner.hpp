@@ -115,7 +115,7 @@ namespace picongpu
                         {
                             pmacc::DataSpace<nAxes> const nDIdx = pmacc::math::mapToND(extentsDataspace, linearTid);
                             float_X factor = 1.;
-                            apply(
+                            binning::apply(
                                 [&](auto const&... binWidthsKernel)
                                 {
                                     // uses bin width for axes without dimensions as well should those be ignored?
@@ -159,7 +159,7 @@ namespace picongpu
             std::optional<::openPMD::Series> m_series;
 
         public:
-            Binner(TBinningData bd, MappingDesc* cellDesc) : binningData{bd}, cellDescription{cellDesc}
+            Binner(TBinningData const& bd, MappingDesc* cellDesc) : binningData{bd}, cellDescription{cellDesc}
             {
                 this->pluginName = "binner_" + binningData.binnerOutputName;
                 /**
@@ -186,7 +186,7 @@ namespace picongpu
                 //  Do binning for species. Writes to histBuffer
                 if(binningData.isRegionEnabled(ParticleRegion::Bounded))
                 {
-                    std::apply(
+                    binning::apply(
                         [&](auto const&... tupleArgs) { ((doBinningForSpecies(tupleArgs, currentStep)), ...); },
                         binningData.speciesTuple);
                 }
@@ -246,7 +246,7 @@ namespace picongpu
                                 this->histBuffer->getDeviceBuffer().getDataBox());
 
                         // change output dimensions
-                        apply(
+                        binning::apply(
                             [&](auto const&... tupleArgs)
                             { ((dimensionSubtraction(outputUnits, tupleArgs.units)), ...); },
                             binningData.axisTuple);
@@ -304,7 +304,7 @@ namespace picongpu
 
                 if(binningData.isRegionEnabled(ParticleRegion::Leaving))
                 {
-                    std::apply(
+                    binning::apply(
                         [&](auto const&... tupleArgs)
                         {
                             (misc::ExecuteIf{}(

@@ -22,6 +22,7 @@
 #if(ENABLE_OPENPMD == 1)
 
 #    include "picongpu/plugins/binning/Axis.hpp"
+#    include "picongpu/plugins/binning/utility.hpp"
 #    include "picongpu/plugins/common/openPMDDefaultExtension.hpp"
 
 #    include <cstdint>
@@ -64,7 +65,7 @@ namespace picongpu
             T_DepositionData depositionData;
             std::function<void(::openPMD::Series& series, ::openPMD::Iteration& iteration, ::openPMD::Mesh& mesh)>
                 writeOpenPMDFunctor;
-            DataSpace<std::tuple_size_v<T_AxisTuple>> axisExtentsND;
+            DataSpace<pmacc::memory::tuple::tuple_size_v<T_AxisTuple>> axisExtentsND;
 
             /* Optional parameters not initialized by constructor.
              * Use the return value of addBinner() to modify them if needed. */
@@ -80,10 +81,10 @@ namespace picongpu
             std::string jsonCfg = "{}";
 
             BinningData(
-                const std::string binnerName,
-                const T_AxisTuple axes,
-                const T_SpeciesTuple species,
-                const T_DepositionData depositData,
+                std::string const& binnerName,
+                T_AxisTuple const& axes,
+                T_SpeciesTuple const& species,
+                T_DepositionData const& depositData,
                 std::function<void(::openPMD::Series& series, ::openPMD::Iteration& iteration, ::openPMD::Mesh& mesh)>
                     writeOpenPMD)
                 : binnerOutputName{binnerName}
@@ -92,19 +93,18 @@ namespace picongpu
                 , depositionData{depositData}
                 , writeOpenPMDFunctor{writeOpenPMD}
             {
-                std::apply(
+                binning::applyEnumerate(
                     [&](auto const&... tupleArgs)
                     {
-                        uint32_t i = 0;
                         // This assumes getNBins() exists
-                        ((axisExtentsND[i++] = tupleArgs.getNBins()), ...);
+                        ((axisExtentsND[tupleArgs.first] = tupleArgs.second.getNBins()), ...);
                     },
                     axisTuple);
             }
 
             static constexpr uint32_t getNAxes()
             {
-                return std::tuple_size_v<T_AxisTuple>;
+                return pmacc::memory::tuple::tuple_size_v<T_AxisTuple>;
             }
 
             /** @brief Time average the accumulated data when doing the dump. Defaults to true. */

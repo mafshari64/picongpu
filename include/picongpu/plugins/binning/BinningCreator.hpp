@@ -62,11 +62,12 @@ namespace picongpu
              */
             template<typename TAxisTuple, typename TSpeciesTuple, typename TDepositionData>
             auto addBinner(
-                std::string binnerOutputName,
-                TAxisTuple axisTupleObject,
-                TSpeciesTuple speciesTupleObject,
-                TDepositionData depositionData,
-                std::function<void(::openPMD::Series& series, ::openPMD::Iteration& iteration, ::openPMD::Mesh& mesh)>
+                std::string const& binnerOutputName,
+                TAxisTuple const& axisTupleObject,
+                TSpeciesTuple const& speciesTupleObject,
+                TDepositionData const& depositionData,
+                std::function<
+                    void(::openPMD::Series& series, ::openPMD::Iteration& iteration, ::openPMD::Mesh& mesh)> const&
                     writeOpenPMDFunctor
                 = [](::openPMD::Series& series, ::openPMD::Iteration& iteration, ::openPMD::Mesh& mesh) {})
                 -> BinningData<TAxisTuple, TSpeciesTuple, TDepositionData>&
