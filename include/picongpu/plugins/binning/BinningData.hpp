@@ -22,7 +22,6 @@
 #if(ENABLE_OPENPMD == 1)
 
 #    include "picongpu/plugins/binning/Axis.hpp"
-#    include "picongpu/plugins/binning/utility.hpp"
 #    include "picongpu/plugins/common/openPMDDefaultExtension.hpp"
 
 #    include <cstdint>
@@ -65,7 +64,7 @@ namespace picongpu
             T_DepositionData depositionData;
             std::function<void(::openPMD::Series& series, ::openPMD::Iteration& iteration, ::openPMD::Mesh& mesh)>
                 writeOpenPMDFunctor;
-            DataSpace<pmacc::memory::tuple::tuple_size_v<T_AxisTuple>> axisExtentsND;
+            DataSpace<std::tuple_size_v<T_AxisTuple>> axisExtentsND;
 
             /* Optional parameters not initialized by constructor.
              * Use the return value of addBinner() to modify them if needed. */
@@ -93,18 +92,19 @@ namespace picongpu
                 , depositionData{depositData}
                 , writeOpenPMDFunctor{writeOpenPMD}
             {
-                binning::applyEnumerate(
+                std::apply(
                     [&](auto const&... tupleArgs)
                     {
+                        uint32_t i = 0;
                         // This assumes getNBins() exists
-                        ((axisExtentsND[tupleArgs.first] = tupleArgs.second.getNBins()), ...);
+                        ((axisExtentsND[i++] = tupleArgs.getNBins()), ...);
                     },
                     axisTuple);
             }
 
             static constexpr uint32_t getNAxes()
             {
-                return pmacc::memory::tuple::tuple_size_v<T_AxisTuple>;
+                return std::tuple_size_v<T_AxisTuple>;
             }
 
             /** @brief Time average the accumulated data when doing the dump. Defaults to true. */

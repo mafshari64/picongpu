@@ -138,7 +138,7 @@ namespace picongpu
                 mesh.setGeometry(::openPMD::Mesh::Geometry::cartesian);
                 mesh.setDataOrder(::openPMD::Mesh::DataOrder::C);
 
-                binning::apply(
+                std::apply(
                     [&](auto const&... tupleArgs)
                     {
                         ((mesh.setAttribute(tupleArgs.label + "_bin_edges", tupleArgs.getBinEdgesSI())), ...);

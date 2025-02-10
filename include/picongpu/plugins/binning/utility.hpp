@@ -72,30 +72,32 @@ namespace picongpu
 
         namespace detail
         {
-            template<size_t... Is, typename TPmaccTuple, typename Functor>
-            constexpr auto tupleMapHelper(std::index_sequence<Is...>, TPmaccTuple&& tuple, Functor&& functor) noexcept
+            template<size_t... Is, typename... Args, typename Functor>
+            constexpr auto tupleMapHelper(
+                std::index_sequence<Is...>,
+                std::tuple<Args...> const& tuple,
+                Functor&& functor) noexcept
             {
-                return pmacc::memory::tuple::make_tuple(std::forward<Functor>(functor)(
-                    pmacc::memory::tuple::get<Is>(std::forward<TPmaccTuple>(tuple)))...);
+                return pmacc::memory::tuple::make_tuple(std::forward<Functor>(functor)(std::get<Is>(tuple))...);
             }
         } // namespace detail
 
         /**
          * @brief create a new tuple from the return value of a functor applied on all arguments of a tuple
          */
-        template<typename TPmaccTuple, typename Functor>
-        constexpr auto tupleMap(TPmaccTuple&& tuple, Functor&& functor) noexcept
+        template<typename... Args, typename Functor>
+        constexpr auto tupleMap(std::tuple<Args...> const& tuple, Functor&& functor) noexcept
         {
             return detail::tupleMapHelper(
-                std::make_index_sequence<pmacc::memory::tuple::tuple_size_v<TPmaccTuple>>{},
-                std::forward<TPmaccTuple>(tuple),
+                std::make_index_sequence<sizeof...(Args)>{},
+                tuple,
                 std::forward<Functor>(functor));
         }
 
         template<typename... Args>
         constexpr auto createTuple(Args&&... args) noexcept
         {
-            return pmacc::memory::tuple::make_tuple(std::forward<Args>(args)...);
+            return std::make_tuple(std::forward<Args>(args)...);
         }
 
     } // namespace plugins::binning

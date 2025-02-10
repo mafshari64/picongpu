@@ -186,7 +186,7 @@ namespace picongpu
                 //  Do binning for species. Writes to histBuffer
                 if(binningData.isRegionEnabled(ParticleRegion::Bounded))
                 {
-                    binning::apply(
+                    std::apply(
                         [&](auto const&... tupleArgs) { ((doBinningForSpecies(tupleArgs, currentStep)), ...); },
                         binningData.speciesTuple);
                 }
@@ -246,7 +246,7 @@ namespace picongpu
                                 this->histBuffer->getDeviceBuffer().getDataBox());
 
                         // change output dimensions
-                        binning::apply(
+                        std::apply(
                             [&](auto const&... tupleArgs)
                             { ((dimensionSubtraction(outputUnits, tupleArgs.units)), ...); },
                             binningData.axisTuple);
@@ -304,7 +304,7 @@ namespace picongpu
 
                 if(binningData.isRegionEnabled(ParticleRegion::Leaving))
                 {
-                    binning::apply(
+                    std::apply(
                         [&](auto const&... tupleArgs)
                         {
                             (misc::ExecuteIf{}(
