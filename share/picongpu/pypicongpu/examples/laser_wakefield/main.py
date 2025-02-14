@@ -70,8 +70,8 @@ species_list = []
 if not ENABLE_IONIZATION:
     interaction = None
 
-    primary_electrons = picmi.Species(particle_type="electron", name="electron", initial_distribution=gaussianProfile)
-    species_list.append((primary_electrons, random_layout))
+    electrons = picmi.Species(particle_type="electron", name="electron", initial_distribution=gaussianProfile)
+    species_list.append((electrons, random_layout))
 
     if ENABLE_IONS:
         hydrogen_fully_ionized = picmi.Species(
@@ -87,22 +87,20 @@ else:
     )
     species_list.append((hydrogen_with_ionization, random_layout))
 
-    secondary_electrons_from_ionization = picmi.Species(
-        particle_type="electron", name="electron", initial_distribution=None
-    )
-    species_list.append((secondary_electrons_from_ionization, None))
+    electrons = picmi.Species(particle_type="electron", name="electron", initial_distribution=None)
+    species_list.append((electrons, None))
 
     adk_ionization_model = picmi.ADK(
         ADK_variant=picmi.ADKVariant.CircularPolarization,
         ion_species=hydrogen_with_ionization,
-        ionization_electron_species=secondary_electrons_from_ionization,
+        ionization_electron_species=electrons,
         ionization_current=None,
     )
 
     bsi_effectiveZ_ionization_model = picmi.BSI(
         BSI_extensions=[picmi.BSIExtension.EffectiveZ],
         ion_species=hydrogen_with_ionization,
-        ionization_electron_species=secondary_electrons_from_ionization,
+        ionization_electron_species=electrons,
         ionization_current=None,
     )
 
@@ -110,9 +108,12 @@ else:
         ground_state_ionization_model_list=[adk_ionization_model, bsi_effectiveZ_ionization_model]
     )
 
-    phase_space = picmi.PhaseSpace(
-        species="electron", period=100, spatial_coordinate="y", momentum="py", min_momentum=-1.0, max_momentum=1.0
+diagnostics_list = []
+diagnostics_list.append(
+    picmi.PhaseSpace(
+        species=electrons, period=100, spatial_coordinate="y", momentum="py", min_momentum=-1.0, max_momentum=1.0
     )
+)
 
 sim = picmi.Simulation(
     solver=solver,
@@ -126,7 +127,11 @@ sim = picmi.Simulation(
 for species, layout in species_list:
     sim.add_species(species, layout=layout)
 
+for entry in diagnostics_list:
+    sim.add_diagnostic(entry)
+
 sim.add_laser(laser, None)
+
 
 # additional non standardized custom user input
 # only active if custom templates are used

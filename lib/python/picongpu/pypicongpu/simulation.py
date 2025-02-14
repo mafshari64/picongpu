@@ -14,6 +14,7 @@ from . import util
 from . import output
 from .rendering import RenderedObject
 from .customuserinput import InterfaceCustomUserInput
+from .output.plugin import Plugin
 
 import typing
 import typeguard
@@ -65,6 +66,8 @@ class Simulation(RenderedObject):
 
     moving_window = util.build_typesafe_property(typing.Optional[MovingWindow])
     """used moving Window, set to None to disable"""
+
+    plugins = util.build_typesafe_property(typing.Optional[Plugin])
 
     def __get_output_context(self) -> dict:
         """retrieve all output objects"""

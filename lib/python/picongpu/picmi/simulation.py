@@ -373,7 +373,7 @@ class Simulation(picmistandard.PICMI_Simulation):
         initmgr.all_operations += self.__get_operations_not_placed(pypicongpu_by_picmi_species)
         initmgr.all_operations += self.__get_operations_from_individual_species(pypicongpu_by_picmi_species)
 
-        return initmgr
+        return initmgr, pypicongpu_by_picmi_species
 
     def write_input_file(
         self, file_name: str, pypicongpu_simulation: typing.Optional[pypicongpu.simulation.Simulation] = None
@@ -455,7 +455,12 @@ class Simulation(picmistandard.PICMI_Simulation):
             # explictly disable laser (as required by pypicongpu)
             s.laser = None
 
-        s.init_manager = self.__get_init_manager()
+        s.init_manager, pypicongpu_by_picmi_species = self.__get_init_manager()
+
+        pypicongpu_particle_plugins = []
+        for entry in self.diagnostics:
+            pypicongpu_particle_plugins.append(entry.get_as_pypicongpu(pypicongpu_by_picmi_species))
+        s.plugins = pypicongpu_particle_plugins
 
         # set typical ppc if not set explicitly by user
         if self.picongpu_typical_ppc is None:

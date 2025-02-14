@@ -7,6 +7,9 @@ License: GPLv3+
 
 from ..pypicongpu import util
 from ..pypicongpu.output import phase_space
+from ..pypicongpu.species.species import Species as PyPIConGPUSpecies
+
+from .species import Species as PICMISpecies
 
 import picmistandard
 import typeguard
@@ -18,7 +21,7 @@ class PhaseSpace(picmistandard.PICMI_PhaseSpace):
 
     def __init__(
         self,
-        species: str,
+        species: PICMISpecies,
         period: int,
         spatial_coordinate: str,
         momentum: str,
@@ -40,11 +43,13 @@ class PhaseSpace(picmistandard.PICMI_PhaseSpace):
 
         super().__init__(**kw)
 
-    def get_as_pypicongpu(self) -> phase_space.PhaseSpace:
+    def get_as_pypicongpu(
+        self, dict_species_picmi_to_pypicongpu: dict[PICMISpecies, PyPIConGPUSpecies]
+    ) -> phase_space.PhaseSpace:
         util.unsupported("extra attributes", self.__dict__.keys())
 
         pypicongpu_phase_space = phase_space.PhaseSpace(
-            species=self.species,
+            species=dict_species_picmi_to_pypicongpu[self.species],
             period=self.period,
             spatial_coordinate=self.spatial_coordinate,
             momentum=self.momentum,
