@@ -111,12 +111,7 @@ else:
     )
 
     phase_space = picmi.PhaseSpace(
-        phase_space_species_name="electron",
-        phase_space_period=100,
-        phase_space_space="y",
-        phase_space_momentum="py",
-        phase_space_min=-1.0,
-        phase_space_max=1.0,
+        species="electron", period=100, spatial_coordinate="y", momentum="py", min_momentum=-1.0, max_momentum=1.0
     )
 
 sim = picmi.Simulation(
