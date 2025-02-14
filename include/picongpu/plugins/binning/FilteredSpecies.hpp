@@ -19,6 +19,8 @@
 
 #pragma once
 
+#include "picongpu/plugins/binning/utility.hpp"
+
 #include <pmacc/attribute/FunctionSpecifier.hpp>
 
 namespace picongpu
@@ -64,9 +66,9 @@ namespace picongpu
          * a trivial AllParticle filter is used with it, which allows all particles through without filtering
          */
         template<typename... Args>
-        HDINLINE auto createSpeciesTuple(Args&&... args)
+        constexpr auto createSpeciesTuple(Args&&... args)
         {
-            return std::make_tuple(
+            return createTuple(
                 (IsFilteredSpecies<Args> ? std::forward<Args>(args) : FilteredSpecies{std::forward<Args>(args)})...);
         }
 

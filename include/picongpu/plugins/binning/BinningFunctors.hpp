@@ -53,19 +53,18 @@ namespace picongpu
 
                 auto binsDataspace = pmacc::DataSpace<T_nAxes>{};
                 bool validIdx = true;
-                apply(
+                binning::applyEnumerate(
                     [&](auto const&... tupleArgs)
                     {
-                        uint32_t i = 0;
                         // This assumes n_bins and getBinIdx exist
                         validIdx
-                            = ((
+                            = (
                                    [&]
                                    {
-                                       auto [isValid, binIdx] = tupleArgs.getBinIdx(domainInfo, worker, particle);
-                                       binsDataspace[i++] = binIdx;
+                                       auto [isValid, binIdx] = tupleArgs.second.getBinIdx(domainInfo, worker, particle);
+                                       binsDataspace[tupleArgs.first] = binIdx;
                                        return isValid;
-                                   }())
+                                   }()
                                && ...);
                     },
                     axes);

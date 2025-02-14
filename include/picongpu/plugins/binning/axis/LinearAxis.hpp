@@ -188,7 +188,7 @@ namespace picongpu
                 /**
                  * @return bin edges in SI units
                  */
-                std::vector<double> getBinEdgesSI()
+                std::vector<double> getBinEdgesSI() const
                 {
                     /**
                      * @TODO store edges? Compute once at the beginning and store for later to print at every

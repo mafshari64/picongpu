@@ -80,10 +80,10 @@ namespace picongpu
             std::string jsonCfg = "{}";
 
             BinningData(
-                const std::string binnerName,
-                const T_AxisTuple axes,
-                const T_SpeciesTuple species,
-                const T_DepositionData depositData,
+                std::string const& binnerName,
+                T_AxisTuple const& axes,
+                T_SpeciesTuple const& species,
+                T_DepositionData const& depositData,
                 std::function<void(::openPMD::Series& series, ::openPMD::Iteration& iteration, ::openPMD::Mesh& mesh)>
                     writeOpenPMD)
                 : binnerOutputName{binnerName}

@@ -56,8 +56,8 @@ namespace picongpu
                 std::optional<::openPMD::Series>& maybe_series,
                 OpenPMDWriteParams params,
                 std::unique_ptr<HostBuffer<T_Type, 1u>> hReducedBuffer,
-                T_BinningData binningData,
-                const std::array<double, numUnits>& outputUnits,
+                T_BinningData const& binningData,
+                std::array<double, numUnits> const& outputUnits,
                 const uint32_t currentStep,
                 const bool isCheckpoint = false,
                 const uint32_t accumulateCounter = 0)
@@ -139,7 +139,7 @@ namespace picongpu
                 mesh.setDataOrder(::openPMD::Mesh::DataOrder::C);
 
                 std::apply(
-                    [&](auto&... tupleArgs)
+                    [&](auto const&... tupleArgs)
                     {
                         ((mesh.setAttribute(tupleArgs.label + "_bin_edges", tupleArgs.getBinEdgesSI())), ...);
                         ((mesh.setAttribute(tupleArgs.label + "_units", tupleArgs.units)), ...);
@@ -148,7 +148,7 @@ namespace picongpu
                         std::reverse(labelVector.begin(), labelVector.end());
                         mesh.setAxisLabels(labelVector);
                     },
-                    binningData.axisTuple); // careful no const tupleArgs
+                    binningData.axisTuple);
 
                 std::vector<double> gridSpacingVector;
                 std::vector<double> gridOffsetVector;
