@@ -16,27 +16,25 @@ class PhaseSpace(picmistandard.PICMI_PhaseSpace):
 
     def __init__(
         self,
-        species_name: str,
+        species: str,
         period: int,
-        space: str,
+        spatial_coordinate: str,
         momentum: str,
-        min_value: float,
-        max_value: float,
-        filter_type: str,
+        min_momentum: float,
+        max_momentum: float,
         **kw,
     ):
         if period <= 0:
             raise ValueError("Period must be > 0")
-        if min_value >= max_value:
-            raise ValueError("min_value must be less than max_value")
+        if min_momentum >= max_momentum:
+            raise ValueError("min_momentum must be less than max_momentum")
 
-        self.species_name = species_name
+        self.species = species
         self.period = period
-        self.space = space
+        self.spatial_coordinate = spatial_coordinate
         self.momentum = momentum
-        self.min_value = min_value
-        self.max_value = max_value
-        self.filter_type = filter_type
+        self.min_momentum = min_momentum
+        self.max_momentum = max_momentum
 
         super().__init__(**kw)
 
@@ -44,13 +42,12 @@ class PhaseSpace(picmistandard.PICMI_PhaseSpace):
         util.unsupported("extra attributes", self.__dict__.keys())
 
         pypicongpu_phase_space = phase_space.PhaseSpace(
-            species_name=self.species_name,
+            species=self.species,
             period=self.period,
-            space=self.space,
+            spatial_coordinate=self.spatial_coordinate,
             momentum=self.momentum,
-            min_value=self.min_value,
-            max_value=self.max_value,
-            filter_type=self.filter_type,
+            min_momentum=self.min_momentum,
+            max_momentum=self.max_momentum,
         )
 
         return pypicongpu_phase_space

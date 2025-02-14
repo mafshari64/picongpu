@@ -7,30 +7,30 @@ License: GPLv3+
 
 from pypicongpu import util
 from pypicongpu.rendering import RenderedObject
+from pypicongpu.species import Species
 
 
 import typeguard
 import typing
+from typing import Literal
 
 
 @typeguard.typechecked
 class PhaseSpace(RenderedObject):
-    phase_space_species_name = util.build_typesafe_property(str)
-    phase_space_period = util.build_typesafe_property(int)
-    phase_space_space = util.build_typesafe_property(str)
-    phase_space_momentum = util.build_typesafe_property(str)
-    phase_space_min = util.build_typesafe_property(float)
-    phase_space_max = util.build_typesafe_property(float)
-    phase_space_filter = util.build_typesafe_property(str)
+    species = util.build_typesafe_property(Species)
+    period = util.build_typesafe_property(int)
+    spatial_coordinate = util.build_typesafe_property(Literal["x", "y", "z"])
+    momentum = util.build_typesafe_property(Literal["px", "py", "pz"])
+    min_momentum = util.build_typesafe_property(float)
+    max_momentum = util.build_typesafe_property(float)
 
     def _get_serialized(self) -> typing.Dict:
         """Return the serialized representation of the object."""
         return {
-            "phase_space_species_name": self.phase_space_species_name,
-            "phase_space_period": self.phase_space_period,
-            "phase_space_space": self.phase_space_space,
-            "phase_space_momentum": self.phase_space_momentum,
-            "phase_space_min": self.phase_space_min,
-            "phase_space_max": self.phase_space_max,
-            "phase_space_filter": self.phase_space_filter,
+            "species": self.species.get_generic_profile_rendering_context(),
+            "period": self.period,
+            "spatial_coordinate": self.spatial_coordinate,
+            "momentum": self.momentum,
+            "min_momentum": self.min_momentum,
+            "max_momentum": self.max_momentum,
         }
