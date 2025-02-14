@@ -5,7 +5,9 @@ Authors: Masoud Afshari
 License: GPLv3+
 """
 
-from ..pypicongpu import util, phase_space
+from ..pypicongpu import util
+from ..pypicongpu.output import phase_space
+
 import picmistandard
 import typeguard
 
