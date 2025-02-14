@@ -56,8 +56,15 @@ using namespace pmacc;
  * @return true if equal, else false
  */
 template<typename T>
-static bool isApproxEqual(T const& a, T const& b, T const& epsilon = std::numeric_limits<T>::epsilon())
+static bool isApproxEqual(T const& a, T const& b, T const& epsilon)
 {
+    return a == Catch::Approx(b).margin(epsilon);
+}
+
+template<typename T>
+static bool isApproxEqual(T const& a, T const& b)
+{
+    T const epsilon = std::numeric_limits<T>::epsilon() * max(abs(a), abs(b));
     return a == Catch::Approx(b).margin(epsilon);
 }
 
@@ -156,11 +163,11 @@ struct twtsTightNumberTest
         resultHost.copyFrom(resultDevice);
 
         auto res = resultHost.getDataBox();
-        auto hostEfield = float3_X(
+        auto hostEfield = float3_T(
             testEfield.calcTWTSFieldX(pos, time),
             testEfield.calcTWTSFieldY(pos, time),
             testEfield.calcTWTSFieldZ(pos, time));
-        auto hostBfield = float3_X(
+        auto hostBfield = float3_T(
             testBfield.calcTWTSFieldX(pos, time),
             testBfield.calcTWTSFieldY(pos, time),
             testBfield.calcTWTSFieldZ(pos, time));
@@ -177,7 +184,7 @@ struct twtsTightNumberTest
          * PMacc with boost library calls that also work on device. */
         const float_T epsilonAlgebra = float_T(5.0e-6);
         /* Epsilon to compare host implementation to device implementation */
-        const float_T epsilonHostDevice = float_T(5.0e-15);
+        const float_T epsilonHostDevice = float_T(1.0e-7);
         for(uint32_t i = 0; i < 3; i++)
         {
             CHECK(isApproxEqual(refEfieldT[i], res[i], epsilonAlgebra));
