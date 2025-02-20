@@ -5,8 +5,8 @@ Authors: Masoud Afshari
 License: GPLv3+
 """
 
-from pypicongpu import util
-from pypicongpu.species import Species
+from .. import util
+from ..species import Species
 
 from .plugin import Plugin
 

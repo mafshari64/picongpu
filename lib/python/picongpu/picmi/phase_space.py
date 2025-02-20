@@ -6,8 +6,9 @@ License: GPLv3+
 """
 
 from ..pypicongpu import util
-from ..pypicongpu.output import phase_space
+from ..pypicongpu.output.phase_space import PhaseSpace
 from ..pypicongpu.species.species import Species as PyPIConGPUSpecies
+
 
 from .species import Species as PICMISpecies
 
@@ -21,7 +22,7 @@ class PhaseSpace(picmistandard.PICMI_PhaseSpace):
 
     def __init__(
         self,
-        species: PICMISpecies,
+        species: PyPIConGPUSpecies,
         period: int,
         spatial_coordinate: str,
         momentum: str,
@@ -41,15 +42,41 @@ class PhaseSpace(picmistandard.PICMI_PhaseSpace):
         self.min_momentum = min_momentum
         self.max_momentum = max_momentum
 
-        super().__init__(**kw)
+        super().__init__(
+            species,
+            period,
+            spatial_coordinate,
+            momentum,
+            min_momentum,
+            max_momentum,
+            **kw,
+        )
 
     def get_as_pypicongpu(
-        self, dict_species_picmi_to_pypicongpu: dict[PICMISpecies, PyPIConGPUSpecies]
-    ) -> phase_space.PhaseSpace:
+        # to get the corresponding PyPIConGPUSpecies instance for the given PICMISpecies.
+        self,
+        dict_species_picmi_to_pypicongpu: dict[PICMISpecies, PyPIConGPUSpecies],
+    ) -> PhaseSpace:
+        print(f"dict_species_picmi_to_pypicongpu keys: {list(dict_species_picmi_to_pypicongpu.keys())}")
+        print(f"self.species: {self.species}")
+
+        if self.species not in dict_species_picmi_to_pypicongpu:
+            raise ValueError(f"Species {self.species} is not mapped in dict_species_picmi_to_pypicongpu!")
+
+        # checks if PICMISpecies instance exists in the dictionary. If yes, it returns the corresponding PyPIConGPUSpecies instance.
+        # self.species refers to the species attribute of the class  PhaseSpace(picmistandard.PICMI_PhaseSpace).
+        pypicongpu_species = dict_species_picmi_to_pypicongpu.get(self.species)
+
+        if pypicongpu_species is None:
+            raise ValueError(f"Species {self.species} is not mapped to a PyPIConGPUSpecies.")
+
+        # Print type before passing to PhaseSpace
+        print(f"DEBUG: Mapped species: {pypicongpu_species}, Type: {type(pypicongpu_species)}")
+
         util.unsupported("extra attributes", self.__dict__.keys())
 
-        pypicongpu_phase_space = phase_space.PhaseSpace(
-            species=dict_species_picmi_to_pypicongpu[self.species],
+        pypicongpu_phase_space = PhaseSpace(
+            species=pypicongpu_species,
             period=self.period,
             spatial_coordinate=self.spatial_coordinate,
             momentum=self.momentum,

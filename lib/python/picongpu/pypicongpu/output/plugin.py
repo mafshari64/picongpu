@@ -5,7 +5,7 @@ Authors: Brian Edward Marre, Masoud Afshari
 License: GPLv3+
 """
 
-from pypicongpu.rendering import RenderedObject
+from ..rendering import RenderedObject
 
 import typeguard
 
@@ -13,3 +13,6 @@ import typeguard
 @typeguard.typechecked
 class Plugin(RenderedObject):
     """general interface for all plugins"""
+
+    def __init__(self):
+        raise NotImplementedError("abstract base class only")

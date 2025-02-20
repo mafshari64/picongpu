@@ -10,6 +10,8 @@ from .. import pypicongpu
 from .species import Species
 from .interaction.ionization import IonizationModel
 
+from picongpu.pypicongpu.species.initmanager import InitManager
+
 from . import constants
 from .grid import Cartesian3DGrid
 from .interaction import Interaction
@@ -340,7 +342,8 @@ class Simulation(picmistandard.PICMI_Simulation):
                 pypicongpu_by_picmi_species, ionization_model_conversion_by_species
             )
 
-    def __get_init_manager(self) -> pypicongpu.species.InitManager:
+    # def __get_init_manager(self) -> pypicongpu.species.InitManager:
+    def __get_init_manager(self) -> tuple[InitManager, typing.Dict[Species, pypicongpu.species.Species]]:
         """
         create & fill an Initmanager
 
@@ -361,7 +364,8 @@ class Simulation(picmistandard.PICMI_Simulation):
         self.__fill_in_ionization_electrons(pypicongpu_by_picmi_species, ionization_model_conversion_by_species)
 
         # init PyPIConGPU init manager
-        initmgr = pypicongpu.species.InitManager()
+        # initmgr = pypicongpu.species.InitManager()
+        initmgr = InitManager()  # This works because InitManager is imported
 
         for pypicongpu_species in pypicongpu_by_picmi_species.values():
             initmgr.all_species.append(pypicongpu_species)
