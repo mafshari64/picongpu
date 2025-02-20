@@ -22,7 +22,7 @@ class PhaseSpace(picmistandard.PICMI_PhaseSpace):
 
     def __init__(
         self,
-        species: PyPIConGPUSpecies,
+        species: PICMISpecies,
         period: int,
         spatial_coordinate: str,
         momentum: str,
@@ -57,8 +57,10 @@ class PhaseSpace(picmistandard.PICMI_PhaseSpace):
         self,
         dict_species_picmi_to_pypicongpu: dict[PICMISpecies, PyPIConGPUSpecies],
     ) -> PhaseSpace:
-        print(f"dict_species_picmi_to_pypicongpu keys: {list(dict_species_picmi_to_pypicongpu.keys())}")
-        print(f"self.species: {self.species}")
+        # print(f"dict_species_picmi_to_pypicongpu keys: {list(dict_species_picmi_to_pypicongpu.keys())}")
+        # print(f"self.species: {self.species}")
+
+        util.unsupported("extra attributes", self.__dict__.keys())
 
         if self.species not in dict_species_picmi_to_pypicongpu:
             raise ValueError(f"Species {self.species} is not mapped in dict_species_picmi_to_pypicongpu!")
@@ -72,8 +74,6 @@ class PhaseSpace(picmistandard.PICMI_PhaseSpace):
 
         # Print type before passing to PhaseSpace
         print(f"DEBUG: Mapped species: {pypicongpu_species}, Type: {type(pypicongpu_species)}")
-
-        util.unsupported("extra attributes", self.__dict__.keys())
 
         pypicongpu_phase_space = PhaseSpace(
             species=pypicongpu_species,
