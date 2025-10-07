@@ -14,6 +14,8 @@ from .png import Png
 from .timestepspec import TimeStepSpec
 from .checkpoint import Checkpoint
 from .rangespec import RangeSpec
+from .openpmd import OpenPMD
+from .openpmd_sources import SourceBase
 
 __all__ = [
     "Auto",
@@ -25,4 +27,6 @@ __all__ = [
     "TimeStepSpec",
     "Checkpoint",
     "RangeSpec",
+    "OpenPMD",
+    "SourceBase",
 ]

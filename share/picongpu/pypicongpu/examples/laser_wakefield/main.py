@@ -13,6 +13,7 @@ import logging
 import datetime
 
 from picongpu.pypicongpu.output.png import EMFieldScaleEnum, ColorScaleEnum
+from picongpu.picmi.diagnostics.openpmd_sources.sources import Density
 
 # set log level:
 # options (in ascending order) are: DEBUG, INFO, WARNING, ERROR, CRITICAL
@@ -201,6 +202,16 @@ sim.diagnostics = [
     picmi.diagnostics.Checkpoint(
         period=picmi.diagnostics.TimeStepSpec[::100],
     ),
+    picmi.diagnostics.OpenPMD(
+        period=picmi.diagnostics.TimeStepSpec[::10000],
+        # range=RangeSpec[:, :, :],  # default
+        source=[
+            Density(species=electrons, filter="species_all"),
+            # Momentum(species=electrons, filter="species_all", direction="x"),
+        ],
+        ext="bp",
+        file="simOutput",
+    ),
 ]
 
 sim.add_laser(laser, None)
@@ -215,14 +226,8 @@ if ADD_CUSTOM_INPUT:
     min_weight_input.addToCustomInput({"minimum_weight": 10.0}, "minimum_weight")
     sim.picongpu_add_custom_user_input(min_weight_input)
 
-    output_configuration = pypicongpu.customuserinput.CustomUserInput()
-
-    output_configuration.addToCustomInput(
-        {"openPMD_period": 100, "openPMD_file": "simData", "openPMD_extension": "bp"},
-        "openPMD plugin configuration",
-    )
-
-    sim.picongpu_add_custom_user_input(output_configuration)
+    # output_configuration = pypicongpu.customuserinput.CustomUserInput()
+    # sim.picongpu_add_custom_user_input(output_configuration)
 
 if __name__ == "__main__":
     sim.write_input_file(OUTPUT_DIRECTORY_PATH)

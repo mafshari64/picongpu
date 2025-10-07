@@ -8,6 +8,8 @@ License: GPLv3+
 from typing import Dict, Optional
 
 import typeguard
+import warnings
+from typing import Union
 
 from picongpu.picmi.copy_attributes import default_converts_to
 
@@ -28,12 +30,13 @@ class Checkpoint:
 
     Parameters
     ----------
-    period: TimeStepSpec, optional
+    period: int or TimeStepSpec, optional
         Specify on which time steps to create checkpoints.
-        Unit: steps (simulation time steps). Required if timePeriod is not provided.
+        Use 0 to disable checkpointing.
+        Unit: steps (simulation time steps) or seconds (via TimeStepSpec unit). Required if timePeriod is not provided.
 
     timePeriod: int, optional
-        Specify the interval in minutes for creating checkpoints.
+        Specify the interval for creating checkpoints.
         Unit: minutes (must be a non-negative integer). Required if period is not provided.
 
     directory: str, optional
@@ -67,23 +70,11 @@ class Checkpoint:
         Dictionary of openPMD-specific settings (e.g., ext, json, infix).
     """
 
-    def check(self, *args, **kwargs):
-        if self.period is None and self.timePeriod is None:
-            raise ValueError("At least one of period or timePeriod must be provided")
-        if self.timePeriod is not None and self.timePeriod < 0:
-            raise ValueError("timePeriod must be a non-negative integer")
-        if self.restartStep is not None and self.restartStep < 0:
-            raise ValueError("restartStep must be non-negative")
-        if self.restartChunkSize is not None and self.restartChunkSize < 1:
-            raise ValueError("restartChunkSize must be positive")
-        if self.restartLoop is not None and self.restartLoop < 0:
-            raise ValueError("restartLoop must be non-negative")
-
     def __init__(
         self,
-        period: Optional[TimeStepSpec] = None,
+        period: Optional[Union[int, TimeStepSpec]] = None,
         timePeriod: Optional[int] = None,
-        directory: Optional[str] = None,
+        directory: Optional[str] = "checkpoints",
         file: Optional[str] = None,
         restart: Optional[bool] = None,
         tryRestart: Optional[bool] = None,
@@ -94,7 +85,16 @@ class Checkpoint:
         restartLoop: Optional[int] = None,
         openPMD: Optional[Dict] = None,
     ):
-        self.period = period
+        if period is not None and not isinstance(period, (int, TimeStepSpec)):
+            raise TypeError("period must be an integer or TimeStepSpec")
+        if isinstance(period, int):
+            if period < 0:
+                raise ValueError("period must be non-negative")
+            self.period = (
+                TimeStepSpec([slice(None, None, period)])("steps") if period > 0 else TimeStepSpec([])("steps")
+            )
+        else:
+            self.period = period if period is not None else TimeStepSpec([])("steps")
         self.timePeriod = timePeriod
         self.directory = directory
         self.file = file
@@ -106,3 +106,19 @@ class Checkpoint:
         self.restartChunkSize = restartChunkSize
         self.restartLoop = restartLoop
         self.openPMD = openPMD
+
+    def check(self, *args, **kwargs):
+        if self.period is None and self.timePeriod is None:
+            raise ValueError("At least one of period or timePeriod must be provided")
+        if self.timePeriod is not None and (not isinstance(self.timePeriod, int) or self.timePeriod < 0):
+            raise ValueError("timePeriod must be a non-negative integer")
+        if self.restartStep is not None and self.restartStep < 0:
+            raise ValueError("restartStep must be non-negative")
+        if self.restartChunkSize is not None and self.restartChunkSize <= 0:
+            raise ValueError("restartChunkSize must be positive")
+        if self.restartLoop is not None and self.restartLoop < 0:
+            raise ValueError("restartLoop must be non-negative")
+        if not self.period.specs and (self.timePeriod is None or self.timePeriod == 0):
+            warnings.warn(
+                "Checkpoint is disabled because period is set to 0 or an empty TimeStepSpec and timePeriod is None or 0"
+            )

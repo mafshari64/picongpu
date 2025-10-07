@@ -1,0 +1,226 @@
+"""
+This file is part of PIConGPU.
+Copyright 2025 PIConGPU contributors
+Authors: Masoud Afshari
+License: GPLv3+
+"""
+
+from ... import util
+from ...species import Species
+from .source_base import SourceBase
+import typeguard
+import typing
+from typing import Optional, Tuple
+
+# ---------------------------------------------------------------------------
+# Base classes
+# ---------------------------------------------------------------------------
+
+
+@typeguard.typechecked
+class SourceBaseSpeciesFilter(SourceBase):
+    """Common base for sources that use (species, filter)."""
+
+    species = util.build_typesafe_property(Species)
+    filter = util.build_typesafe_property(str)
+    simulation_box = util.build_typesafe_property(Optional[Tuple[int, ...]])
+
+    def __init__(
+        self, species: Species, filter: str = "species_all", simulation_box: Optional[Tuple[int, ...]] = None
+    ):  # default filter ="species_all"
+        self.species = species
+        self.filter = filter
+        self.simulation_box = simulation_box
+        self.check()
+
+    def check(self) -> None:
+        valid_filters = ["species_all", "fields_all", "custom_filter"]
+        if not isinstance(self.filter, str):
+            raise ValueError(f"Filter must be a string, got {type(self.filter)}")
+        if self.filter not in valid_filters:
+            raise ValueError(f"Filter must be one of {valid_filters}, got {self.filter}")
+        if not isinstance(self.species, Species):
+            raise ValueError(f"Species must be a Species, got {type(self.species)}")
+        if self.simulation_box and len(self.simulation_box) not in [1, 2, 3]:
+            raise ValueError(f"Simulation box must have 1, 2, or 3 dimensions, got {len(self.simulation_box)}")
+
+    def _get_serialized(self) -> typing.Dict:
+        self.check()
+        serialized = {
+            "species": self.species.get_rendering_context(),
+            "filter": self.filter,
+            "type": self.__class__.__name__.lower(),
+        }
+        if self.simulation_box:
+            serialized["simulation_box"] = self.simulation_box
+        return serialized
+
+
+@typeguard.typechecked
+class SourceBaseFilterOnly(SourceBase):
+    """Common base for sources that only use filter."""
+
+    filter = util.build_typesafe_property(str)
+    simulation_box = util.build_typesafe_property(Optional[Tuple[int, ...]])
+
+    def __init__(self, filter: str = "species_all", simulation_box: Optional[Tuple[int, ...]] = None):
+        self.filter = filter
+        self.simulation_box = simulation_box
+        self.check()
+
+    def check(self) -> None:
+        valid_filters = ["species_all", "fields_all", "custom_filter"]
+        if not isinstance(self.filter, str):
+            raise ValueError(f"Filter must be a string, got {type(self.filter)}")
+        if self.filter not in valid_filters:
+            raise ValueError(f"Filter must be one of {valid_filters}, got {self.filter}")
+        if self.simulation_box and len(self.simulation_box) not in [1, 2, 3]:
+            raise ValueError(f"Simulation box must have 1, 2, or 3 dimensions, got {len(self.simulation_box)}")
+
+    def _get_serialized(self) -> typing.Dict:
+        self.check()
+        serialized = {"filter": self.filter, "type": self.__class__.__name__.lower()}
+        if self.simulation_box:
+            serialized["simulation_box"] = self.simulation_box
+        return serialized
+
+
+# ---------------------------------------------------------------------------
+# sources with (species + filter, no extras)
+# ---------------------------------------------------------------------------
+
+
+@typeguard.typechecked
+class BoundElectronDensity(SourceBaseSpeciesFilter):
+    pass
+
+
+@typeguard.typechecked
+class ChargeDensity(SourceBaseSpeciesFilter):
+    pass
+
+
+@typeguard.typechecked
+class Counter(SourceBaseSpeciesFilter):
+    pass
+
+
+@typeguard.typechecked
+class Density(SourceBaseSpeciesFilter):
+    pass
+
+
+@typeguard.typechecked
+class Energy(SourceBaseSpeciesFilter):
+    pass
+
+
+@typeguard.typechecked
+class EnergyDensity(SourceBaseSpeciesFilter):
+    pass
+
+
+@typeguard.typechecked
+class LarmorPower(SourceBaseSpeciesFilter):
+    pass
+
+
+@typeguard.typechecked
+class MacroCounter(SourceBaseSpeciesFilter):
+    pass
+
+
+# ---------------------------------------------------------------------------
+# sources with (filter only)
+# ---------------------------------------------------------------------------
+
+
+@typeguard.typechecked
+class Auto(SourceBaseFilterOnly):
+    pass
+
+
+@typeguard.typechecked
+class DerivedAttributes(SourceBaseFilterOnly):
+    pass
+
+
+# ---------------------------------------------------------------------------
+# Sources with extra parameters
+# ---------------------------------------------------------------------------
+
+
+@typeguard.typechecked
+class EnergyDensityCutoff(SourceBaseSpeciesFilter):
+    cutoff_max_energy = util.build_typesafe_property(float)
+
+    def __init__(
+        self,
+        species: Species,
+        filter: str = "species_all",
+        cutoff_max_energy: typing.Optional[float] = None,
+        simulation_box: Optional[Tuple[int, ...]] = None,
+    ):
+        if cutoff_max_energy is None:
+            raise ValueError("cutoff_max_energy is required and must be a positive number")
+        self.cutoff_max_energy = cutoff_max_energy
+        super().__init__(species, filter, simulation_box)
+
+    def check(self) -> None:
+        super().check()
+        if not isinstance(self.cutoff_max_energy, (int, float)):
+            raise ValueError(f"cutoff_max_energy must be a number, got {type(self.cutoff_max_energy)}")
+        if self.cutoff_max_energy <= 0:
+            raise ValueError(f"cutoff_max_energy must be positive, got {self.cutoff_max_energy}")
+
+    def _get_serialized(self) -> typing.Dict:
+        base = super()._get_serialized()
+        base.update({"cutoff_max_energy": self.cutoff_max_energy})
+        return base
+
+
+@typeguard.typechecked
+class Momentum(SourceBaseSpeciesFilter):
+    direction = util.build_typesafe_property(str)
+
+    def __init__(
+        self,
+        species: Species,
+        filter: str = "species_all",
+        direction: str = "x",
+        simulation_box: Optional[Tuple[int, ...]] = None,
+    ):
+        super().__init__(species, filter, simulation_box)
+        self.direction = direction
+        self.check()
+
+    def check(self) -> None:
+        super().check()
+        if self.direction not in ["x", "y", "z"]:
+            raise ValueError(f"Direction must be 'x', 'y', or 'z', got {self.direction}")
+
+    def _get_serialized(self) -> typing.Dict:
+        base = super()._get_serialized()
+        base.update({"direction": self.direction})
+        return base
+
+
+@typeguard.typechecked
+class MidCurrentDensityComponent(Momentum):
+    """Same as Momentum (species + filter + direction)."""
+
+    pass
+
+
+@typeguard.typechecked
+class MomentumDensity(Momentum):
+    """Same as Momentum (species + filter + direction)."""
+
+    pass
+
+
+@typeguard.typechecked
+class WeightedVelocity(Momentum):
+    """Same as Momentum (species + filter + direction)."""
+
+    pass

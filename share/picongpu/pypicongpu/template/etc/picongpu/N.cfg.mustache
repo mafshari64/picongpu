@@ -95,13 +95,6 @@ fi
   {{/stop_iteration}}
 {{/moving_window}}
 
-{{#binomial_current_interpolation}}
-TBG_currentInterpolation="--currentInterpolation binomial"
-{{/binomial_current_interpolation}}
-{{^binomial_current_interpolation}}
-TBG_currentInterpolation="--currentInterpolation none"
-{{/binomial_current_interpolation}}
-
 pypicongpu_output_with_newlines="
   {{#output}}
       {{#data}}
@@ -160,6 +153,28 @@ pypicongpu_output_with_newlines="
           --{{{species.name}}}_png.folder {{{folder}}}
     {{/typeID.png}}
 
+
+{{! Partial OpenPMD options to avoid duplicating of OpenPMD flags,
+e.g., in checkpoint and openPMD blocks.}}
+{{#openPMD}}
+  {{#ext}}--{{{prefix}}}.ext {{{ext}}}{{/ext}}
+  {{#infix}}--{{{prefix}}}.infix {{{infix}}}{{/infix}}
+  {{#json}}--{{{prefix}}}.json {{{json}}}{{/json}}
+
+  {{#json_restart}}
+    {{#is_checkpoint}}
+      --{{{prefix}}}.jsonRestart {{{json_restart}}}
+    {{/is_checkpoint}}
+    {{^is_checkpoint}}
+      --checkpoint.openPMD.jsonRestart {{{json_restart}}}
+    {{/is_checkpoint}}
+  {{/json_restart}}
+  {{#data_preparation_strategy}}--{{{prefix}}}.dataPreparationStrategy {{{data_preparation_strategy}}}{{/data_preparation_strategy}}
+  {{#toml}}--{{{prefix}}}.toml {{{toml}}}{{/toml}}
+  {{#particle_io_chunk_size}}--{{{prefix}}}.particleIOChunkSize {{{particle_io_chunk_size}}}{{/particle_io_chunk_size}}
+  {{#file_writing}}--{{{prefix}}}.writeAccess {{{file_writing}}}{{/file_writing}}
+{{/openPMD}}
+
 {{#typeID.checkpoint}}
 {{#period}}--checkpoint.period {{#period.specs}}{{{start}}}:{{{stop}}}:{{{step}}}{{^_last}},{{/_last}}{{/period.specs}}
 {{/period}}
@@ -184,23 +199,17 @@ pypicongpu_output_with_newlines="
 {{#restartLoop}}--checkpoint.restart.loop {{{restartLoop}}}
 {{/restartLoop}}
 {{#openPMD}}
-  {{#openPMD.ext}}--checkpoint.openPMD.ext {{{openPMD.ext}}}
-  {{/openPMD.ext}}
-  {{#openPMD.json}}--checkpoint.openPMD.json {{{openPMD.json}}}
-  {{/openPMD.json}}
-  {{#openPMD.infix}}--checkpoint.openPMD.infix {{{openPMD.infix}}}
-  {{/openPMD.infix}}
-  {{#openPMD.dataPreparationStrategy}}--checkpoint.openPMD.dataPreparationStrategy {{{openPMD.dataPreparationStrategy}}}
-  {{/openPMD.dataPreparationStrategy}}
-  {{#openPMD.jsonRestart}}--checkpoint.openPMD.jsonRestart {{{openPMD.jsonRestart}}}
-  {{/openPMD.jsonRestart}}
-  {{#openPMD.toml}}--checkpoint.openPMD.toml {{{openPMD.toml}}}
-  {{/openPMD.toml}}
-  {{#openPMD.particleIOChunkSize}}--checkpoint.openPMD.particleIOChunkSize {{{openPMD.particleIOChunkSize}}}
-  {{/openPMD.particleIOChunkSize}}
+{{> _openPMD prefix="checkpoint.openPMD" is_checkpoint=true}}
 {{/openPMD}}
 {{/typeID.checkpoint}}
 
+{{#typeID.openpmd}}
+{{#period}}--openPMD.period {{#period.specs}}{{{start}}}:{{{stop}}}:{{{step}}}{{^_last}},{{/_last}}{{/period.specs}}{{/period}}
+{{#source}}--openPMD.source {{{source}}}{{/source}}
+{{#range}}--openPMD.range {{{range}}}{{/range}}
+{{#file}}--openPMD.file {{{file}}}{{/file}}
+{{> _openPMD prefix="openPMD" is_checkpoint=false}}
+{{/typeID.openpmd}}
 
     {{/data}}
   {{/output}}
@@ -226,7 +235,6 @@ TBG_programParams="-d !TBG_deviceDist   \
                     !TBG_gridDist       \
                    {{/grid.grid_dist}}
                    !TBG_periodic        \
-           !TBG_currentInterpolation   \
                    !TBG_plugins         \
                    {{#moving_window}}
                     !TBG_movingWindow    \

@@ -1,7 +1,7 @@
 """
 This file is part of PIConGPU.
 Copyright 2021-2025 PIConGPU contributors
-Authors: Hannes Troepgen, Brian Edward Marre, Julian Lenz
+Authors: Hannes Troepgen, Brian Edward Marre, Julian Lenz, Masoud Afshari
 License: GPLv3+
 """
 
@@ -24,6 +24,7 @@ from .grid import Cartesian3DGrid
 from .interaction import Interaction
 from .interaction.ionization import IonizationModel
 from .species import Species
+from .diagnostics.openpmd import OpenPMD
 
 
 def is_iterable(obj):
@@ -523,11 +524,26 @@ class Simulation(picmistandard.PICMI_Simulation):
 
         s.init_manager, pypicongpu_by_picmi_species = self.__get_init_manager()
 
+        # Extract simulation_box from grid
+        if isinstance(self.solver.grid, Cartesian3DGrid):
+            simulation_box = tuple(self.solver.grid.number_of_cells)
+        else:
+            raise ValueError("Grid must be a Cartesian3DGrid with defined number_of_cells")
+
+        # Validate diagnostics
+        for entry in self.diagnostics:
+            if isinstance(entry, OpenPMD):
+                entry.check(dict_species_picmi_to_pypicongpu=pypicongpu_by_picmi_species, simulation_box=simulation_box)
+            else:
+                entry.check(dict_species_picmi_to_pypicongpu=pypicongpu_by_picmi_species)
+
+        # Convert diagnostics
         s.plugins = [
             entry.get_as_pypicongpu(
                 dict_species_picmi_to_pypicongpu=pypicongpu_by_picmi_species,
                 time_step_size=self.time_step_size,
                 num_steps=s.time_steps,
+                simulation_box=simulation_box if isinstance(entry, OpenPMD) else None,
             )
             for entry in self.diagnostics
         ]

@@ -32,13 +32,13 @@ class Png:
         Unit: steps (simulation time steps).
 
     axis: string
-        Axis combination for the 2D slice (e.g., "yx").
+        Axis combination for the 2D slice (e.g., "xy", "xz", "yz").
 
     slice_point: float
         Ratio for the slice position in the dimension not used in axis (e.g., "z") (0.0 to 1.0).
         [unit: dimensionless]
 
-    species: string
+    species: PICMISpecies
         Name of the particle species to count (e.g., "electron", "proton").
 
     folder_name: string
@@ -105,45 +105,6 @@ class Png:
         Custom expression for channel 3.
     """
 
-    def check(self, dict_species_picmi_to_pypicongpu, *args, **kwargs):
-        if not (0.0 <= self.slice_point <= 1.0):
-            raise ValueError("Slice point must be between 0.0 and 1.0")
-
-        if not (0.0 <= self.pre_particle_density_opacity <= 1.0):
-            raise ValueError("pre particle density opacity must be between 0.0 and 1.0")
-        if not (0.0 <= self.pre_channel1_opacity <= 1.0):
-            raise ValueError("Pre channel 1 opacity must be between 0.0 and 1.0")
-        if not (0.0 <= self.pre_channel2_opacity <= 1.0):
-            raise ValueError("Pre channel 2 opacity must be between 0.0 and 1.0")
-        if not (0.0 <= self.pre_channel3_opacity <= 1.0):
-            raise ValueError("Pre channel 3 opacity must be between 0.0 and 1.0")
-
-        # Validate EM field scaling for channels
-        if self.em_field_scale_channel1 not in EMFieldScaleEnum:
-            raise ValueError(f"Invalid EM field scale for channel 1. Valid options are {list(EMFieldScaleEnum)}.")
-        if self.em_field_scale_channel2 not in EMFieldScaleEnum:
-            raise ValueError(f"Invalid EM field scale for channel 2. Valid options are {list(EMFieldScaleEnum)}.")
-        if self.em_field_scale_channel3 not in EMFieldScaleEnum:
-            raise ValueError(f"Invalid EM field scale for channel 3. Valid options are {list(EMFieldScaleEnum)}.")
-
-        # Validate color scales for particle density and channels
-        if self.pre_particle_density_color_scales not in ColorScaleEnum:
-            raise ValueError(f"Invalid color scale for particle density. Valid options are {list(ColorScaleEnum)}.")
-        if self.pre_channel1_color_scales not in ColorScaleEnum:
-            raise ValueError(f"Invalid color scale for channel 1. Valid options are {list(ColorScaleEnum)}.")
-        if self.pre_channel2_color_scales not in ColorScaleEnum:
-            raise ValueError(f"Invalid color scale for channel 2. Valid options are {list(ColorScaleEnum)}.")
-        if self.pre_channel3_color_scales not in ColorScaleEnum:
-            raise ValueError(f"Invalid color scale for channel 3. Valid options are {list(ColorScaleEnum)}.")
-
-        if self.species not in dict_species_picmi_to_pypicongpu.keys():
-            raise ValueError(f"Species {self.species} is not known to Simulation")
-
-        pypicongpu_species = dict_species_picmi_to_pypicongpu.get(self.species)
-
-        if pypicongpu_species is None:
-            raise ValueError(f"Species {self.species} is not mapped to a PyPIConGPUSpecies.")
-
     def __init__(
         self,
         species: PICMISpecies,
@@ -193,3 +154,74 @@ class Png:
         self.pre_channel1 = pre_channel1
         self.pre_channel2 = pre_channel2
         self.pre_channel3 = pre_channel3
+
+    def check(self, dict_species_picmi_to_pypicongpu, *args, **kwargs):
+        if self.species is None:
+            raise ValueError("species must be set")
+
+        if self.period is None:
+            raise ValueError("period must be set")
+        if self.axis not in ["xy", "yx", "xz", "zx", "yz", "zy"]:
+            raise ValueError(f"axis must be 'xy', 'yx', 'xz', 'zx', 'yz', or 'zy', got {self.axis}")
+
+        if not (0.0 <= self.slice_point <= 1.0):
+            raise ValueError(f"slice_point must be in [0, 1], got {self.slice_point}")
+        if self.scale_image <= 0:
+            raise ValueError(f"scale_image must be positive, got {self.scale_image}")
+        if self.scale_to_cellsize and self.scale_image == 1.0:
+            raise ValueError(f"scale_image must not be 1.0 when scale_to_cellsize is True, got {self.scale_image}")
+
+        if not (0.0 <= self.pre_particle_density_opacity <= 1.0):
+            raise ValueError(f"pre_particle_density_opacity must be in [0, 1], got {self.pre_particle_density_opacity}")
+        if not (0.0 <= self.pre_channel1_opacity <= 1.0):
+            raise ValueError(f"pre_channel1_opacity must be in [0, 1], got {self.pre_channel1_opacity}")
+        if not (0.0 <= self.pre_channel2_opacity <= 1.0):
+            raise ValueError(f"pre_channel2_opacity must be in [0, 1], got {self.pre_channel2_opacity}")
+        if not (0.0 <= self.pre_channel3_opacity <= 1.0):
+            raise ValueError(f"pre_channel3_opacity must be in [0, 1], got {self.pre_channel3_opacity}")
+
+        for channel, name in [
+            (self.pre_channel1, "pre_channel1"),
+            (self.pre_channel2, "pre_channel2"),
+            (self.pre_channel3, "pre_channel3"),
+        ]:
+            if not isinstance(channel, str) or not channel.strip():
+                raise ValueError(f"{name} must be a non-empty string, got {channel}")
+        if len(self.custom_normalization_si) != 3:
+            raise ValueError(
+                f"custom_normalization_si must contain exactly 3 floats, got {len(self.custom_normalization_si)}"
+            )
+        for val in self.custom_normalization_si:
+            if not isinstance(val, float):
+                raise ValueError(f"custom_normalization_si values must be floats, got {val}")
+
+        # Validate EM field scaling for channels
+        if self.em_field_scale_channel1 is None or self.em_field_scale_channel1 not in EMFieldScaleEnum:
+            raise ValueError(f"em_field_scale_channel1 is None or Invalid. Valid options are {list(EMFieldScaleEnum)}.")
+        if self.em_field_scale_channel2 is None or self.em_field_scale_channel2 not in EMFieldScaleEnum:
+            raise ValueError(f"em_field_scale_channel2 is None or Invalid. Valid options are {list(EMFieldScaleEnum)}.")
+        if self.em_field_scale_channel3 is None or self.em_field_scale_channel3 not in EMFieldScaleEnum:
+            raise ValueError(f"em_field_scale_channel3 is None or Invalid. Valid options are {list(EMFieldScaleEnum)}.")
+
+        # Validate color scales for particle density and channels
+        if (
+            self.pre_particle_density_color_scales is None
+            or self.pre_particle_density_color_scales not in ColorScaleEnum
+        ):
+            raise ValueError(
+                f"pre_particle_density_color_scales is None or Invalid. Valid options are {list(ColorScaleEnum)}."
+            )
+        if self.pre_channel1_color_scales is None or self.pre_channel1_color_scales not in ColorScaleEnum:
+            raise ValueError(f"pre_channel1_color_scales is None or Invalid. Valid options are {list(ColorScaleEnum)}.")
+        if self.pre_channel2_color_scales is None or self.pre_channel2_color_scales not in ColorScaleEnum:
+            raise ValueError(f"pre_channel2_color_scales is None or Invalid. Valid options are {list(ColorScaleEnum)}.")
+        if self.pre_channel3_color_scales is None or self.pre_channel3_color_scales not in ColorScaleEnum:
+            raise ValueError(f"pre_channel3_color_scales is None or Invalid. Valid options are {list(ColorScaleEnum)}.")
+
+        if self.species not in dict_species_picmi_to_pypicongpu.keys():
+            raise ValueError(f"Species {self.species} is not known to Simulation")
+
+        pypicongpu_species = dict_species_picmi_to_pypicongpu.get(self.species)
+
+        if pypicongpu_species is None:
+            raise ValueError(f"Species {self.species} is not mapped to a PyPIConGPUSpecies.")

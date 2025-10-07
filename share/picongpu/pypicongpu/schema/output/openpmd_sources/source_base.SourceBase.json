@@ -1,0 +1,24 @@
+{
+  "$id": "https://registry.hzdr.de/crp/picongpu/schema/picongpu.pypicongpu.output.openpmd_sources.source_base.SourceBase",
+  "type": "object",
+  "description": "Abstract base class for openPMD data sources in PIConGPU, defining common properties for openPMD sources.",
+  "unevaluatedProperties": false,
+  "properties": {
+    "type": {
+      "type": "string",
+      "description": "Type of the data source."
+    },
+    "filter": {
+      "type": "string",
+      "description": "Name of a filter to select particles contributing to the data source."
+    },
+    "species": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "$ref": "https://registry.hzdr.de/crp/picongpu/schema/picongpu.pypicongpu.species.species.Species",
+      "description": "Particle species for the data source, if applicable."
+    }
+  }
+}

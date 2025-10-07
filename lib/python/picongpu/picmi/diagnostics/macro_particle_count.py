@@ -15,6 +15,7 @@ from ...pypicongpu.output.macro_particle_count import (
 from ...pypicongpu.species.species import Species as PyPIConGPUSpecies
 from ..species import Species as PICMISpecies
 from .timestepspec import TimeStepSpec
+from typing import Union
 
 
 @diagnostic_converts_to(PyPIConGPUMacroParticleCount)
@@ -28,10 +29,10 @@ class MacroParticleCount:
 
     Parameters
     ----------
-    species: string
+    species: PICMISpecies
         Name of the particle species to count (e.g., "electron", "proton").
 
-    period: int
+    period: int or TimeStepSpec
         Number of simulation steps between consecutive counts.
         Unit: steps (simulation time steps).
 
@@ -39,9 +40,22 @@ class MacroParticleCount:
         Optional name for the macro particle count plugin.
     """
 
-    def __init__(self, species: PICMISpecies, period: TimeStepSpec):
+    def __init__(
+        self,
+        species: PICMISpecies,
+        period: Union[int, TimeStepSpec],
+    ):
+        if not isinstance(period, (int, TimeStepSpec)):
+            raise TypeError("period must be an integer or TimeStepSpec")
+        if isinstance(period, int):
+            if period < 0:
+                raise ValueError("period must be non-negative")
+            self.period = (
+                TimeStepSpec([slice(None, None, period)])("steps") if period > 0 else TimeStepSpec([])("steps")
+            )
+        else:
+            self.period = period
         self.species = species
-        self.period = period
 
     def check(self, dict_species_picmi_to_pypicongpu: dict[PICMISpecies, PyPIConGPUSpecies], *args, **kwargs):
         if self.species not in dict_species_picmi_to_pypicongpu.keys():

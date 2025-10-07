@@ -14,6 +14,7 @@ from ...pypicongpu.output.energy_histogram import (
 )
 from ..species import Species as PICMISpecies
 from .timestepspec import TimeStepSpec
+from typing import Union
 
 
 @diagnostic_converts_to(PyPIConGPUEnergyHistogram)
@@ -27,17 +28,17 @@ class EnergyHistogram:
 
     Parameters
     ----------
-    species: string
-        Name of the particle species to track (e.g., "electron", "proton").
+    species: PICMISpecies
+        Name of the particle species to track (e.g., an instance with name= "electron", "proton").
 
-    period: int
+    period: int or TimeStepSpec
         Number of simulation steps between consecutive outputs.
         If set to a non-zero value, the energy histogram of all electrons is computed.
         By default, the value is 0 and no histogram for the electrons is computed.
         Unit: steps (simulation time steps).
 
     bin_count: int
-        Number of bins for the energy histogram.
+        Number of bins for the energy histogram. Must be positive.
 
     min_energy: float
         Minimum value for the energy histogram range.
@@ -45,32 +46,44 @@ class EnergyHistogram:
         Default is 0, meaning 0 keV.
 
     max_energy: float
-        Maximum value for the energy histogram range.
+        Maximum value for the energy histogram range. Must be greater than min_energy.
         Unit: keV
         There is no default value.
-
-    name: string, optional
-        Optional name for the energy histogram plugin.
     """
 
+    def __init__(
+        self,
+        species: PICMISpecies,
+        period: Union[int, TimeStepSpec],
+        bin_count: int,
+        min_energy: float,
+        max_energy: float,
+    ):
+        self.species = species
+        if not isinstance(period, (int, TimeStepSpec)):
+            raise TypeError("period must be an integer or TimeStepSpec")
+        if isinstance(period, int):
+            if period < 0:
+                raise ValueError("period must be non-negative")
+            self.period = (
+                TimeStepSpec([slice(None, None, period)])("steps") if period > 0 else TimeStepSpec([])("steps")
+            )
+        else:
+            self.period = period
+        self.bin_count = bin_count
+        self.min_energy = min_energy
+        self.max_energy = max_energy
+
     def check(self, dict_species_picmi_to_pypicongpu, *args, **kwargs):
+        if not isinstance(self.species, PICMISpecies):
+            raise TypeError("species must be a PICMISpecies")
+        if not isinstance(self.species.name, str) or not self.species.name:
+            raise TypeError("species must have a non-empty name")
+        if not isinstance(self.period, TimeStepSpec):
+            raise TypeError("period must be a TimeStepSpec")
         if self.min_energy >= self.max_energy:
             raise ValueError("min_energy must be less than max_energy")
         if self.bin_count <= 0:
             raise ValueError("bin_count must be > 0")
         if self.species not in dict_species_picmi_to_pypicongpu.keys():
             raise ValueError(f"Species {self.species} is not known to Simulation")
-
-    def __init__(
-        self,
-        species: PICMISpecies,
-        period: TimeStepSpec,
-        bin_count: int,
-        min_energy: float,
-        max_energy: float,
-    ):
-        self.species = species
-        self.period = period
-        self.bin_count = bin_count
-        self.min_energy = min_energy
-        self.max_energy = max_energy
